@@ -149,6 +149,12 @@
        </modules>
      </profile>
      <profile>
+       <id>cached-datastore</id>
+       <modules>
+         <module>cached-datastore</module>
+       </modules>
+     </profile>
+     <profile>
        <id>ogr</id>
        <modules>
          <module>ogr</module>

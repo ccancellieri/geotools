@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:cache="http://www.springframework.org/schema/cache"
+	xmlns:context="http://www.springframework.org/schema/context" xmlns:p="http://www.springframework.org/schema/p"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+    http://www.springframework.org/schema/cache http://www.springframework.org/schema/cache/spring-cache.xsd
+    http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd">
+
+<!-- 	<cache:annotation-driven cache-manager="cached-datastore-cacheManager" /> -->
+
+	<context:annotation-config />
+	<context:component-scan base-package="org.geotools.data.cache" />
+
+	<bean id="cached-datastore-cacheManager" class="org.springframework.cache.ehcache.EhCacheCacheManager"
+		p:cache-manager-ref="cached-datastore-ehcache" />
+
+	<bean id="cached-datastore-ehcache"
+		class="org.springframework.cache.ehcache.EhCacheManagerFactoryBean"
+		p:config-location="classpath:ehcache.xml" destroy-method="destroy"/>
+
+<!-- 	<bean id="cached-datastore-cacheUtil" class="org.geotools.data.cache.util.CacheUtil" /> -->
+</beans>
