@@ -4,29 +4,28 @@ import java.io.IOException;
 
 import org.geotools.data.DataStore;
 import org.geotools.data.cache.op.BaseFeatureSourceOp;
-import org.geotools.data.cache.utils.CacheUtils;
-import org.geotools.data.cache.utils.CachedFeatureSource;
+import org.geotools.data.cache.op.CacheManager;
 import org.geotools.data.simple.SimpleFeatureSource;
 import org.springframework.cache.Cache;
 import org.springframework.cache.support.SimpleValueWrapper;
 
 public class STRFeatureSourceOp extends BaseFeatureSourceOp {
 
-    Cache cacheManager;
+    final Cache ehCacheManager;
 
-    public STRFeatureSourceOp(DataStore ds, String typeName) {
-        super(ds, null, typeName);
-        cacheManager = CacheUtils.getCacheUtils().getCache("featureSource");
+    public STRFeatureSourceOp(DataStore ds, String typeName, CacheManager cacheManager) {
+        super(ds, null, typeName, cacheManager);
+        this.ehCacheManager = EHCacheUtils.getCacheUtils().getCache("featureSource");
     }
 
     @Override
     public SimpleFeatureSource getCached() throws IOException {
-        SimpleFeatureSource s=cacheGet(cacheManager, this.hashCode());
+        SimpleFeatureSource s = cacheGet(ehCacheManager, this.hashCode());
         if (s == null) {
             SimpleFeatureSource fs = store.getFeatureSource(typeName);
             if (fs != null) {
                 s = new STRCachedFeatureSource(fs, getEntry(), null);
-                cachePut(cacheManager, s, this.hashCode());
+                cachePut(ehCacheManager, s, this.hashCode());
             } else {
                 throw new IOException(
                         "Unable to cache a null feature source, please check the source datastore.");

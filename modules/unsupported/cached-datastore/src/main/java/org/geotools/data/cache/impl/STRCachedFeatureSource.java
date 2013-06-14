@@ -60,22 +60,24 @@ import com.vividsolutions.jts.index.strtree.STRtree;
 @SuppressWarnings("unchecked")
 public class STRCachedFeatureSource extends DelegateContentFeatureSource {
 
-    private STRtree index;
-
-    private ReadWriteLock lockIndex = new ReentrantReadWriteLock();
-
     private boolean dirty = true;
 
-    // private Query cachedQuery;
-    //
-    // private Envelope cachedBounds;
+    // the cache container
+    private STRtree index;
 
+    // lock on cache
+    private ReadWriteLock lockIndex = new ReentrantReadWriteLock();
+
+    // used to track cached areas
     private Geometry cachedAreas = new Polygon(null, null, JTSFactoryFinder.getGeometryFactory());
 
+    // lock on cached areas
     private ReadWriteLock lockAreas = new ReentrantReadWriteLock();
 
+    // cached bounds
     private final Envelope originalBounds;
 
+    // the cached schema
     private final SimpleFeatureType schema;
 
     static FilterFactory2 ff = CommonFactoryFinder.getFilterFactory2(null);
@@ -138,7 +140,7 @@ public class STRCachedFeatureSource extends DelegateContentFeatureSource {
             lockAreas.readLock().unlock();
         }
         if (!isEmpty) {
-            SimpleFeatureType schema = getSchema();
+//            SimpleFeatureType schema = getSchema();
             GeometryDescriptor geoDesc = schema.getGeometryDescriptor();
             String geoName = geoDesc.getLocalName();
             Filter[] sF = splitFilters(cloned);
@@ -311,7 +313,7 @@ public class STRCachedFeatureSource extends DelegateContentFeatureSource {
     }
 
     private BBOX bboxFilter(Envelope bbox) {
-        return ff.bbox(getSchema().getGeometryDescriptor().getLocalName(), bbox.getMinX(),
+        return ff.bbox(schema.getGeometryDescriptor().getLocalName(), bbox.getMinX(),
                 bbox.getMinY(), bbox.getMaxX(), bbox.getMaxY(), null);
     }
 

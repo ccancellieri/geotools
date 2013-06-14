@@ -1,6 +1,6 @@
 package org.geotools.data.cache.op;
 
-public enum CacheOp {
+public enum Operation {
 
     // ContentFeatureSource
     bounds, count, featureCollection, writer, schema,

@@ -25,19 +25,28 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Level;
 
+import net.sf.ehcache.transaction.xa.commands.StorePutCommand;
+
+import org.apache.commons.collections.MapUtils;
+import org.apache.commons.collections.Transformer;
 import org.geotools.data.AbstractDataStoreFactory;
+import org.geotools.data.DataAccess;
 import org.geotools.data.DataAccessFactory;
 import org.geotools.data.DataAccessFinder;
 import org.geotools.data.DataStore;
 import org.geotools.data.DataStoreFactorySpi;
 import org.geotools.data.Repository;
 import org.geotools.data.cache.impl.STRFeatureSourceOpSPI;
-import org.geotools.data.cache.op.CacheOp;
+import org.geotools.data.cache.op.CacheManager;
+import org.geotools.data.cache.op.Operation;
 import org.geotools.data.cache.op.CachedOp;
-import org.geotools.data.cache.op.CachedOpSPI;
 import org.geotools.feature.NameImpl;
 import org.geotools.util.KVP;
+import org.opengis.feature.Feature;
+import org.opengis.feature.type.FeatureType;
+import org.opengis.util.InternationalString;
 
 /**
  * 
@@ -46,6 +55,10 @@ import org.geotools.util.KVP;
  */
 public class CachedDataStoreFactory extends AbstractDataStoreFactory implements DataStoreFactorySpi {
 
+    public final static String STORE_NAME = "CachedDataStore";
+
+    public final static String STORE_DESC = "Add a cache layer to the selected datastore (the cache can be a local datastore or a spring pluggable cache)";
+
     public static final Param REPOSITORY_PARAM = new Param("repository", Repository.class,
             "The repository that will provide the store intances", true, null, new KVP(Param.LEVEL,
                     "advanced"));
@@ -53,14 +66,105 @@ public class CachedDataStoreFactory extends AbstractDataStoreFactory implements 
     public static final Param NAMESPACE = new Param("Namespace", String.class, "Namespace prefix",
             true, "topp", new KVP(Param.ELEMENT, String.class));
 
-    public static final Param STORE = new Param("Store", String.class,
+    public static final String SOURCE_TYPE_KEY = "SourceNameType";
+
+    public static final Param SOURCE_TYPE = new Param(SOURCE_TYPE_KEY, String.class,
+            "Setup a storage type for the source (use cache for spring cache)", true, null);
+
+    public static final String SOURCE_PARAMS_KEY = "SourceParams";
+
+    public static final Param SOURCE_PARAMS = new MapParam(SOURCE_PARAMS_KEY, Map.class,
             "The target data store to cache", true, null, new KVP(Param.ELEMENT, String.class));
 
-    public static final Param CACHE_TYPE = new Param("Cache type name", String.class,
-            "Setup a storage system for the cache (use cache for spring cache)", true, "cache");
+    public static final String CACHE_TYPE_KEY = "CacheNameType";
 
-    public static final Param CACHE_PARAMS = new Param("Cache params array", Map.class,
-            "Pass parameters to the cache datastore", false, new KVP(Param.ELEMENT, Map.class)) {
+    public static final Param CACHE_TYPE = new Param(CACHE_TYPE_KEY, String.class,
+            "Setup the cache type (use cache for spring cache)", true, null);
+
+    public static final String CACHE_PARAMS_KEY = "CacheParams";
+
+    public static final Param CACHE_PARAMS = new MapParam(CACHE_PARAMS_KEY, Map.class,
+            "The target data store to cache", true, null, new KVP(Param.ELEMENT, String.class));
+
+    // public static final Param STORE = new Param("Store", String.class,
+    // "The target data store to cache", true, null, new KVP(Param.ELEMENT, String.class));
+
+    // public static final Param CACHE_PARAMS = new MapParam("Cache params array", Map.class,
+    // "Pass parameters to the cache datastore", false, new KVP(Param.ELEMENT, Map.class));
+
+    // public static final Param PARALLELISM = new Param("parallelism", Integer.class,
+    // "Number of allowed concurrent queries on the delegate stores (unlimited by default)",
+    // false, new Integer(-1));
+
+    public String getDisplayName() {
+        return STORE_NAME;
+    }
+
+    public String getDescription() {
+        return STORE_DESC;
+    }
+
+    public Param[] getParametersInfo() {
+        return new Param[] { REPOSITORY_PARAM, SOURCE_TYPE, SOURCE_PARAMS, CACHE_TYPE,
+                CACHE_PARAMS, NAMESPACE };
+    }
+
+    public boolean isAvailable() {
+        return true;
+    }
+
+    public Map<Key, ?> getImplementationHints() {
+        return null;
+    }
+
+    public CachedDataStoreFactory() {
+        super();
+    }
+
+    private static class MapParam extends Param {
+
+        public MapParam(String arg0, Class<?> arg1, InternationalString arg2, boolean arg3,
+                Object arg4, Map<String, ?> arg5) {
+            super(arg0, arg1, arg2, arg3, arg4, arg5);
+        }
+
+        public MapParam(String arg0, Class<?> arg1, InternationalString arg2, boolean arg3,
+                Object arg4) {
+            super(arg0, arg1, arg2, arg3, arg4);
+        }
+
+        public MapParam(String arg0, Class<?> arg1, String arg2, boolean arg3, Object arg4,
+                Map<String, ?> arg5) {
+            super(arg0, arg1, arg2, arg3, arg4, arg5);
+        }
+
+        public MapParam(String arg0, Class<?> arg1, String arg2, boolean arg3, Object arg4,
+                Object... arg5) {
+            super(arg0, arg1, arg2, arg3, arg4, arg5);
+        }
+
+        public MapParam(String arg0, Class<?> arg1, String arg2, boolean arg3, Object arg4) {
+            super(arg0, arg1, arg2, arg3, arg4);
+        }
+
+        public MapParam(String arg0, Class<?> arg1, String arg2, boolean arg3) {
+            super(arg0, arg1, arg2, arg3);
+        }
+
+        public MapParam(String arg0, Class<?> arg1, String arg2) {
+            super(arg0, arg1, arg2);
+        }
+
+        public MapParam(String arg0, Class<?> arg1) {
+            super(arg0, arg1);
+        }
+
+        public MapParam(String arg0) {
+            super(arg0);
+        }
+
+        /** serialVersionUID */
+        private static final long serialVersionUID = -4043222059380622418L;
 
         @Override
         public Object parse(String text) throws IOException {
@@ -81,38 +185,53 @@ public class CachedDataStoreFactory extends AbstractDataStoreFactory implements 
             }
             return map;
         }
-    };
-
-    // public static final Param PARALLELISM = new Param("parallelism", Integer.class,
-    // "Number of allowed concurrent queries on the delegate stores (unlimited by default)",
-    // false, new Integer(-1));
-
-    public String getDisplayName() {
-        return "Cached data store";
     }
 
-    public String getDescription() {
-        return "Add a cache layer to the selected datastore (the cache can be a local datastore or a spring pluggable cache)";
+    /**
+     * @param params
+     * @param prefix
+     * @return a map (subset of the passed params map) containing all the objects having the key matching the prefix.*. The resulting keys are purged
+     *         from the prefix.
+     */
+    public static Map<String, Serializable> extractParams(final Map<String, Serializable> params,
+            final String prefix) {
+        final Map<String, Serializable> ret = new HashMap<String, Serializable>();
+        for (String key : params.keySet()) {
+            String subKey = key.replaceFirst(prefix + ".*", "");
+            ret.put(subKey, params.get(key));
+        }
+        return ret;
     }
 
-    public Param[] getParametersInfo() {
-        return new Param[] { REPOSITORY_PARAM, STORE, NAMESPACE, CACHE_TYPE, CACHE_PARAMS };
-    }
-
-    public boolean isAvailable() {
-        return true;
-    }
-
-    public Map<Key, ?> getImplementationHints() {
-        return null;
+    /**
+     * appends a prefix to all the keys in the params map, returning the transformed map
+     * 
+     * @param params
+     * @param prefix
+     * @return
+     */
+    public static Map<String, Serializable> addParams(final Map<String, Serializable> params,
+            final String prefix) {
+        final Map<String, Serializable> ret = MapUtils.transformedMap(params, new Transformer() {
+            @Override
+            public Object transform(Object input) {
+                return new StringBuilder().append(prefix).append(input).toString();
+            }
+        }, null);
+        ret.putAll(params);
+        return ret;
     }
 
     public DataStore createDataStore(Map<String, Serializable> params) throws IOException {
-        Repository repository = lookup(REPOSITORY_PARAM, params, Repository.class);
-        String store = lookup(STORE, params, String.class);
-        String cacheType = lookup(CACHE_TYPE, params, String.class);
-        Map<String, Serializable> cacheParams = lookup(CACHE_PARAMS, params, Map.class);
-        String namespace = lookup(NAMESPACE, params, String.class);
+        // Repository repository = lookup(REPOSITORY_PARAM, params, Repository.class);
+
+        // String namespace = lookup(NAMESPACE, params, String.class);
+
+        final String sourceType = lookup(SOURCE_TYPE, params, String.class);
+        final Map<String, Serializable> sourceParams = lookup(SOURCE_PARAMS, params, Map.class);
+        // DataStore source = repository.dataStore(new NameImpl(namespace, store));
+        final DataStore source = (DataStore) getDataStore(sourceParams, sourceType);
+
         //
         // ExecutorService executor;
         // int parallelism = lookup(PARALLELISM, params, Integer.class);
@@ -122,56 +241,57 @@ public class CachedDataStoreFactory extends AbstractDataStoreFactory implements 
         // executor = Executors.newFixedThreadPool(parallelism);
         // }
 
-        DataStore source = repository.dataStore(new NameImpl(namespace, store));
+        // DataStore source = repository.dataStore(new NameImpl(namespace, store));
+
+        // CacheManagerOld<DataStore> manager = null;
+        final String cacheType = lookup(CACHE_TYPE, params, String.class);
+        final Map<String, Serializable> cacheParams = lookup(CACHE_PARAMS, params, Map.class);
         
-//        CacheManagerOld<DataStore> manager = null;
-        Map<Object, CachedOp<?>> props = new HashMap<Object, CachedOp<?>>();
-        DataStore cache = null;
-//        if (!cacheType.equals("cache")) {
-//            Collection<DataAccessFactory> factories = getAvailableDataStoreFactories();
-//            for (DataAccessFactory factory : factories) {
-//                if (factory.getDisplayName().equalsIgnoreCase(cacheType)) {
-//                    Map<String, Serializable> props = new HashMap<String, Serializable>();
-//                    for (Param p : factory.getParametersInfo()) {
-//                        props.put(p.getName(), (Serializable) p.getDefaultValue());
-//                    }
-//                    // override
-//                    props.putAll(cacheParams);
-//                    cache = (ContentDataStore) factory.createDataStore(props);
-//                    manager = new CacheManagerOld<DataStore>(cache);
-//                }
-//            }
-//        }
+        final DataStore cache = (DataStore) getDataStore(sourceParams, sourceType);
+        final CacheManager props = new CacheManager(source,cache);
+
         if (cache == null) {
-            props.put(CacheOp.featureSource, new STRFeatureSourceOpSPI().create(source, null));
-//            cache = new SpringCachedDataStore(source);
-//            manager = new CacheManagerOld<DataStore>(cache);
-//            manager.setAllPolicy(CacheOp.values(), true);
+            props.putCachedOp(Operation.featureSource, new STRFeatureSourceOpSPI().create(source, null,props));
+            // cache = new SpringCachedDataStore(source);
+            // manager = new CacheManagerOld<DataStore>(cache);
+            // manager.setAllPolicy(CacheOp.values(), true);
             return new CachedDataStore(source, null, props);
         }
-        return new CachedDataStore(source, null);
+        
+        return new CachedDataStore(source, cache, null);
     }
 
-    public static Collection<DataAccessFactory> getAvailableDataStoreFactories() {
-        List<DataAccessFactory> factories = new ArrayList();
-        Iterator<DataAccessFactory> it = DataAccessFinder.getAvailableDataStores();
-        while (it.hasNext()) {
-            factories.add(it.next());
+    /**
+     * @return the name/description set of available datastore factories
+     */
+    public static Map<String, DataAccessFactory> getAvailableDataStores() {
+        Iterator<DataAccessFactory> availableDataStores = DataAccessFinder.getAvailableDataStores();
+        final Map<String, DataAccessFactory> storeNames = new HashMap<String, DataAccessFactory>();
+
+        while (availableDataStores.hasNext()) {
+            DataAccessFactory factory = availableDataStores.next();
+            String name = factory.getDisplayName();
+            if (name != null && !name.isEmpty()// ) {
+                    && !name.equalsIgnoreCase(CachedDataStoreFactory.STORE_NAME)) {
+                storeNames.put(factory.getDisplayName(), factory);
+            }
         }
-
-        // for (DataAccessFactoryProducer producer : GeoServerExtensions.extensions(DataAccessFactoryProducer.class)) {
-        // try {
-        // factories.addAll(producer.getDataStoreFactories());
-        // }
-        // catch(Throwable t) {
-        // LOGGER.log(Level.WARNING, "Error occured loading data access factories. " +
-        // "Ignoring producer", t);
-        // }
-        // }
-
-        return factories;
+        return storeNames;
     }
 
+    private static DataAccess<? extends FeatureType, ? extends Feature> getDataStore(
+            final Map<String, Serializable> existingParameters, final String factoryName)
+            throws IOException {
+
+        final DataAccessFactory storeFactory = getAvailableDataStores().get(factoryName);
+
+        if (storeFactory != null && storeFactory.canProcess(existingParameters)) {
+            return storeFactory.createDataStore(existingParameters);
+        }
+        throw new IOException("Unable to create a new store using passed existingParameters");
+    }
+
+    @Override
     public DataStore createNewDataStore(Map<String, Serializable> params) throws IOException {
         return createDataStore(params);
     }

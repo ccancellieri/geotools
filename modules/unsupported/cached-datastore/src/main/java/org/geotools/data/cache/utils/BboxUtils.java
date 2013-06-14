@@ -1,19 +1,25 @@
-package org.geotools.data.cache.util;
+package org.geotools.data.cache.utils;
 
 import com.vividsolutions.jts.geom.Envelope;
 
+/**
+ * 
+ * @author carlo
+ * 
+ * @deprecated Unused and Untested
+ */
 public abstract class BboxUtils {
 
     // check the type of requested BBOX
-    // |===|=========================|=====
-    // | 1 |..........2..............|..3..
-    // |===X=========================X=====
-    // | . |.........................|.....
-    // | 4 |.........bbox............|..5..
-    // | . |.........................|.....
-    // |===X=========================X=====
-    // | 6 |..........7..............|..8..
-    // |===|=========================|=====
+    // |===|=========================|=====|
+    // | 1 |..........2..............|..3..|
+    // |===X=========================X=====|
+    // | . |.........................|.....|
+    // | 4 |.........bbox............|..5..|
+    // | . |.........................|.....|
+    // |===X=========================X=====|
+    // | 6 |..........7..............|..8..|
+    // |===|=========================|=====|
 
     public static Envelope topLeft(Envelope cachedBbox, Envelope bbox) {
         return new Envelope(cachedBbox.getMinX(), bbox.getMaxY(), bbox.getMinX(),

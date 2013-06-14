@@ -20,8 +20,8 @@ public abstract class BaseFeatureSourceOp extends BaseOp<SimpleFeatureSource> {
         this.entry = entry;
     }
 
-    public BaseFeatureSourceOp(DataStore ds, DataStore cds, String typeName) {
-        super(ds, cds);
+    public BaseFeatureSourceOp(DataStore ds, DataStore cds, String typeName, CacheManager cacheManager) {
+        super(ds, cds, cacheManager);
         
         this.typeName = typeName;
     }

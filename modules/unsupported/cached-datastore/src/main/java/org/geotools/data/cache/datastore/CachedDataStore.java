@@ -7,12 +7,11 @@ import java.util.Map;
 
 import org.geotools.data.DataStore;
 import org.geotools.data.cache.op.BaseFeatureSourceOp;
-import org.geotools.data.cache.op.CacheOp;
+import org.geotools.data.cache.op.CacheManager;
+import org.geotools.data.cache.op.Operation;
 import org.geotools.data.cache.op.CachedOp;
-import org.geotools.data.cache.op.CachedOpSPI;
 import org.geotools.data.cache.utils.CacheUtils;
 import org.geotools.data.cache.utils.DelegateContentFeatureSource;
-import org.geotools.data.simple.SimpleFeatureSource;
 import org.geotools.data.store.ContentDataStore;
 import org.geotools.data.store.ContentEntry;
 import org.geotools.data.store.ContentFeatureSource;
@@ -25,41 +24,30 @@ public class CachedDataStore extends ContentDataStore {
 
     private final DataStore cache;
 
-    private Map<Object, CachedOp<?>> cacheMap;
+    private final CacheManager cacheManager;
 
-    private Map<Object, CachedOpSPI<?>> cacheConfig;
+    // public CachedDataStore(DataStore store, DataStore cache) throws IOException {
+    // this(store, cache, new CacheManager(store, cache));
+    // }
 
-    public CachedDataStore(DataStore store, DataStore cache) throws IOException {
-        this(store, cache, null);
+    public CachedDataStore(DataStore store, final CacheManager cacheMap) throws IOException {
+        this(store, null, cacheMap);
     }
 
-    public CachedDataStore(DataStore store, DataStore cache, final Map<Object, CachedOp<?>> cacheMap)
+    public CachedDataStore(DataStore store, DataStore cache, final CacheManager cacheManager)
             throws IOException {
         if (store == null)
             throw new IllegalArgumentException("Unable to initialize the store with a null store");
 
         this.store = store;
         this.cache = cache;
-        // need lazy initialization: we have to wait for the spring context loading
-        this.cacheMap = cacheMap != null ? cacheMap : null;
-    }
+        this.cacheManager = cacheManager;
 
-    public Map<Object, CachedOp<?>> getCacheMap() throws IOException {
-
-        if (this.cacheMap == null) {
-            final CacheUtils cu = CacheUtils.getCacheUtils();
-            if (cu != null) {
-                cacheMap = cu.buildCache(store, cache);
-            } else {
-                return new HashMap<Object, CachedOp<?>>();
-            }
-        }
-        return cacheMap;
     }
 
     @Override
     protected List<Name> createTypeNames() throws IOException {
-        CachedOp<?> cachedOp = getCacheMap().get(CacheOp.typeNames);
+        CachedOp<?> cachedOp = cacheManager.getCachedOp(Operation.typeNames);
         if (cachedOp != null)
             return (List<Name>) cachedOp.getCached();
         else
@@ -72,8 +60,8 @@ public class CachedDataStore extends ContentDataStore {
 
     @Override
     protected ContentFeatureSource createFeatureSource(ContentEntry entry) throws IOException {
-        BaseFeatureSourceOp featureSourceOp = (BaseFeatureSourceOp) getCacheMap().get(
-                CacheOp.featureSource);
+        BaseFeatureSourceOp featureSourceOp = (BaseFeatureSourceOp) cacheManager
+                .getCachedOp(Operation.featureSource);
         if (featureSourceOp != null) {
             featureSourceOp.setTypeName(entry.getTypeName());
             featureSourceOp.setEntry(entry);
