@@ -2,11 +2,13 @@ package org.geotools.data.cache.op;
 
 import java.io.IOException;
 
-import org.geotools.data.DataStore;
 import org.springframework.stereotype.Component;
 
 @Component
 public class TypeNamesOpSPI extends CachedOpSPI<TypeNamesOp> {
+
+    /** serialVersionUID */
+    private static final long serialVersionUID = 8002106793427576653L;
 
     @Override
     public Operation getOp() {
@@ -14,9 +16,8 @@ public class TypeNamesOpSPI extends CachedOpSPI<TypeNamesOp> {
     }
 
     @Override
-    protected TypeNamesOp createInstance(DataStore source, DataStore cache,
-            CacheManager cacheManager) throws IOException {
-        return new TypeNamesOp(source, cache, cacheManager);
+    protected TypeNamesOp createInstance(CacheManager cacheManager, final String uniqueName) throws IOException {
+        return new TypeNamesOp(cacheManager,uniqueName);
     }
 
     @Override

@@ -2,7 +2,6 @@ package org.geotools.data.cache.impl;
 
 import java.io.IOException;
 
-import org.geotools.data.DataStore;
 import org.geotools.data.cache.op.CacheManager;
 import org.geotools.data.cache.op.CachedOpSPI;
 import org.geotools.data.cache.op.Operation;
@@ -17,9 +16,8 @@ public class STRFeatureSourceOpSPI extends CachedOpSPI<STRFeatureSourceOp> {
     }
 
     @Override
-    protected STRFeatureSourceOp createInstance(DataStore source, DataStore cache,
-            CacheManager cacheManager) throws IOException {
-        return new STRFeatureSourceOp(source, null, cacheManager);
+    protected STRFeatureSourceOp createInstance(CacheManager cacheManager, final String uniqueName) throws IOException {
+        return new STRFeatureSourceOp(cacheManager,uniqueName);
     }
 
     @Override

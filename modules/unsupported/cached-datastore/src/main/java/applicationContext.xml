@@ -6,7 +6,8 @@
     http://www.springframework.org/schema/cache http://www.springframework.org/schema/cache/spring-cache.xsd
     http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd">
 
-<!-- 	<cache:annotation-driven cache-manager="cached-datastore-cacheManager" /> -->
+	<!-- <cache:annotation-driven cache-manager="cached-datastore-cacheManager" 
+		/> -->
 
 	<context:annotation-config />
 	<context:component-scan base-package="org.geotools.data.cache" />
@@ -16,7 +17,10 @@
 
 	<bean id="cached-datastore-ehcache"
 		class="org.springframework.cache.ehcache.EhCacheManagerFactoryBean"
-		p:config-location="classpath:ehcache.xml" destroy-method="destroy"/>
+		p:config-location="classpath:ehcache.xml" destroy-method="destroy" />
 
-<!-- 	<bean id="cached-datastore-cacheUtil" class="org.geotools.data.cache.util.CacheUtil" /> -->
+	<!-- <bean id="cached-datastore-cacheUtils" class="org.geotools.data.cache.utils.CacheUtils" 
+		/> -->
+
+<!-- 	<bean id="EHCacheUtils" class="org.geotools.data.cache.utils.EHCacheUtils" /> -->
 </beans>

@@ -1,52 +1,57 @@
 package org.geotools.data.cache.op;
 
 import java.io.IOException;
-import java.util.Calendar;
 import java.util.List;
 
-import org.geotools.data.DataStore;
-import org.geotools.feature.NameImpl;
-import org.geotools.feature.simple.SimpleFeatureTypeBuilder;
-import org.geotools.feature.simple.SimpleSchema;
-import org.geotools.feature.type.AttributeDescriptorImpl;
 import org.opengis.feature.type.Name;
 
-public class TypeNamesOp extends BaseOp<List<Name>> {
+public class TypeNamesOp extends BaseOp<List<Name>, TypeNamesOp, TypeNamesOp> {
 
-    public TypeNamesOp(DataStore ds, DataStore cds, CacheManager cacheManager) {
-        super(ds, cds, cacheManager);
+    public TypeNamesOp(CacheManager cacheManager, final String uniqueName) {
+        super(cacheManager,uniqueName);
     }
 
     @Override
-    protected List<Name> getCachedInternal() throws IOException {
+    public List<Name> getCache(TypeNamesOp... o) throws IOException {
         return cache.getNames();
     }
 
     @Override
-    public boolean cache(List<Name> arg) throws IOException {
-        // create schemas
-        for (Name name : arg) {
-            final SimpleFeatureTypeBuilder b = new SimpleFeatureTypeBuilder();
-
-            // initialize the builder
-            b.init(store.getSchema(name));
-
-            // add TIMESTAMP
-            b.add(new AttributeDescriptorImpl(SimpleSchema.DATETIME, new NameImpl("TimeStamp"), 1,
-                    1, false, Calendar.getInstance().getTime()));
-
-            // cache hits
-            b.add(new AttributeDescriptorImpl(SimpleSchema.LONG, new NameImpl("Hits"), 1, 1, false,
-                    0));
-
-            cache.createSchema(b.buildFeatureType());
-            // cache.createSchema(SimpleFeatureTypeBuilder.copy(store.getSchema(name)));
-        }
-        return true;
-    }
+    public boolean isCached(TypeNamesOp... o) {
+        return super.isCached(this);
+    };
 
     @Override
-    public List<Name> operation() throws IOException {
-        return store.getNames();
+    public void setCached(boolean isCached, TypeNamesOp... key) {
+        super.setCached(true, this);
+    };
+
+    @Override
+    public boolean putCache(List<Name>... arg) throws IOException {
+        verify(arg);
+        final SchemaOp op = (SchemaOp) cacheManager.getCachedOp(Operation.schema);
+        // create schemas
+        for (Name name : arg[0]) {
+            if (op != null) {
+                // if (op.isCached(name)) {
+                // force update
+                op.putCache(source.getSchema(name));
+                // cache.updateSchema(name, op.getCache(name));
+                // } else {
+                // update schemaOp cache
+                // op.putCache(source.getSchema(name));
+                // actually cache the schema caching it into the TypeNameOp
+                // cache.createSchema(op.getCache(name));
+                // }
+            } else {
+                // LOG warn no schema wrapping means no timestamp and no hitcache
+                cache.createSchema(source.getSchema(name));
+            }
+
+        }
+        // set cached true
+        setCached(Boolean.TRUE, this);
+
+        return Boolean.TRUE;
     }
 }

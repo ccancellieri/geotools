@@ -15,6 +15,7 @@ import org.geotools.data.DefaultQuery;
 import org.geotools.data.FeatureReader;
 import org.geotools.data.FilteringFeatureReader;
 import org.geotools.data.Query;
+import org.geotools.data.cache.op.CacheManager;
 import org.geotools.data.cache.utils.DelegateContentFeatureSource;
 import org.geotools.data.cache.utils.SimpleListReader;
 import org.geotools.data.simple.SimpleFeatureSource;
@@ -78,7 +79,7 @@ public class STRCachedFeatureSource extends DelegateContentFeatureSource {
     private final Envelope originalBounds;
 
     // the cached schema
-    private final SimpleFeatureType schema;
+//    private final SimpleFeatureType schema;
 
     static FilterFactory2 ff = CommonFactoryFinder.getFilterFactory2(null);
 
@@ -86,36 +87,74 @@ public class STRCachedFeatureSource extends DelegateContentFeatureSource {
             Arrays.asList(BBOX.class, Contains.class, Crosses.class, DWithin.class, Equals.class,
                     Intersects.class, Overlaps.class, Touches.class, Within.class));
 
-    public STRCachedFeatureSource(SimpleFeatureSource sfs, ContentEntry entry, Query query)
-            throws IllegalArgumentException, IOException {
-        super(entry, query, sfs);
+    public STRCachedFeatureSource(CacheManager cacheManager, SimpleFeatureSource sfs,
+            ContentEntry entry, Query query) throws IllegalArgumentException, IOException {
+        super(cacheManager, entry, query, sfs);
         if (delegate == null) {
             throw new IllegalArgumentException(
                     "Unable to initialize without a source ContentFeatureStore");
         }
-        Envelope bounds = sfs.getBounds();
-        if (bounds == null)
+        final Envelope bounds = sfs.getBounds();
+        if (bounds == null) {
             originalBounds = new Envelope(-Double.MAX_VALUE, Double.MAX_VALUE, -Double.MAX_VALUE,
                     Double.MAX_VALUE);
-        else
+        } else {
             originalBounds = bounds;
+        }
 
-        schema = sfs.getSchema();
     }
 
-    @Override
-    public ReferencedEnvelope getBoundsInternal(Query query) {
-        return ReferencedEnvelope.reference(originalBounds);
-    }
+//    @Override
+//    public ReferencedEnvelope getBoundsInternal(Query query) {
+//        return ReferencedEnvelope.reference(originalBounds);
+//    }
 
-    @Override
-    public SimpleFeatureType buildFeatureType() {
-        return schema;
-    }
+//    @Override
+//    public SimpleFeatureType buildFeatureType() throws IOException {
+//
+//        final SchemaOp op = (SchemaOp) cacheManager.getCachedOp(Operation.schema);
+//        // create schemas
+//        if (op != null) {
+//            if (op.isCached(entry.getName())) {
+//                return op.getCache(entry.getName());
+//            } else {
+//                SimpleFeatureType schema = op.getCache();
+//                op.putCache(schema);
+//                return schema;
+//            }
+//        } else
+//            return cacheManager.getSource().getSchema(entry.getName());
+//    }
 
     @Override
     public int getCountInternal(Query query) throws IOException {
-        return getFeatures(query).size();
+        try {
+            lockIndex.writeLock().lock();
+            if (this.index == null) {
+                this.index = new STRtree();
+            }
+            if (this.dirty || !isSubArea(query)) {
+                // this.cachedFeatureSource.fillCache(query);
+                try {
+                    integrateCache(query);
+                } catch (MismatchedDimensionException e) {
+                    throw new IOException(e);
+                } catch (FactoryException e) {
+                    throw new IOException(e);
+                } catch (TransformException e) {
+                    throw new IOException(e);
+                }
+            }
+
+            return index.query((Envelope) getEnvelope(query.getFilter())).size();
+
+        } catch (Exception e) {
+            throw new DataSourceException(
+                    "Error occurred extracting features from the spatial index", e);
+        } finally {
+            lockIndex.writeLock().unlock();
+        }
+
     }
 
     /**
@@ -140,7 +179,7 @@ public class STRCachedFeatureSource extends DelegateContentFeatureSource {
             lockAreas.readLock().unlock();
         }
         if (!isEmpty) {
-//            SimpleFeatureType schema = getSchema();
+            // SimpleFeatureType schema = getSchema();
             GeometryDescriptor geoDesc = schema.getGeometryDescriptor();
             String geoName = geoDesc.getLocalName();
             Filter[] sF = splitFilters(cloned);
