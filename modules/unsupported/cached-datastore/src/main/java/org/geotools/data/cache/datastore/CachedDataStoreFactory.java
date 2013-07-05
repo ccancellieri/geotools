@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 import org.geotools.data.AbstractDataStoreFactory;
@@ -29,10 +30,13 @@ import org.geotools.data.DataAccessFinder;
 import org.geotools.data.DataStore;
 import org.geotools.data.DataStoreFactorySpi;
 import org.geotools.data.cache.op.CacheManager;
+import org.geotools.data.cache.op.CachedOp;
+import org.geotools.data.cache.op.CachedOpSPI;
+import org.geotools.data.cache.utils.CachedOpSPIMapParam;
+import org.geotools.data.cache.utils.MapParam;
 import org.geotools.util.KVP;
 import org.opengis.feature.Feature;
 import org.opengis.feature.type.FeatureType;
-import org.opengis.util.InternationalString;
 
 /**
  * 
@@ -77,6 +81,11 @@ public class CachedDataStoreFactory extends AbstractDataStoreFactory implements 
 
     public static final Param CACHE_PARAMS = new MapParam(CACHE_PARAMS_KEY, Map.class,
             "The target data store to cache", true, null, new KVP(Param.ELEMENT, Param.class));
+    
+    public static final String CACHEDOPSPI_PARAMS_KEY = "CachedOpParams";
+    
+    public static final Param CACHEDOPSPI_PARAMS = new CachedOpSPIMapParam(CACHEDOPSPI_PARAMS_KEY, Map.class,
+            "The Map of SPI to use for Cached Operations", true, null, new KVP(Param.ELEMENT, Param.class));
 
     // public static final String CACHE_MANAGER_KEY = "CacheManager";
 
@@ -100,7 +109,7 @@ public class CachedDataStoreFactory extends AbstractDataStoreFactory implements 
     }
 
     public Param[] getParametersInfo() {
-        return new Param[] { NAME, NAMESPACE, SOURCE_TYPE, SOURCE_PARAMS, CACHE_TYPE, CACHE_PARAMS };
+        return new Param[] { NAME, NAMESPACE, SOURCE_TYPE, SOURCE_PARAMS, CACHE_TYPE, CACHE_PARAMS, CACHEDOPSPI_PARAMS };
     }
 
     public boolean isAvailable() {
@@ -134,8 +143,13 @@ public class CachedDataStoreFactory extends AbstractDataStoreFactory implements 
         final Map<String, Serializable> cacheParams = lookup(CACHE_PARAMS, params, Map.class);
 
         final DataStore cache = (DataStore) getDataStore(cacheParams, cacheType);
-        final CacheManager props = new CacheManager(source, cache, getDataStoreUID(params));
-        props.load(getDataStoreUID(params));
+        
+        final CacheManager cacheManager = new CacheManager(source, cache, createDataStoreUID(params));
+        
+        final Map<String, CachedOpSPI<CachedOp<?, ?, ?>>> spiParams = lookup(CACHEDOPSPI_PARAMS, params, Map.class);
+        
+        cacheManager.load(spiParams.values());
+        
 
 //        if (cache == null) {
 //            CachedOpSPI<?> spi = new STRFeatureSourceOpSPI();
@@ -147,10 +161,10 @@ public class CachedDataStoreFactory extends AbstractDataStoreFactory implements 
 //            return new CachedDataStore(props);
 //        }
 
-        return new CachedDataStore(props);
+        return new CachedDataStore(cacheManager);
     }
 
-    public static String getDataStoreUID(Map<String, Serializable> params) throws IOException {
+    public static String createDataStoreUID(Map<String, Serializable> params) throws IOException {
         return new StringBuilder(lookup(NAMESPACE, params, String.class)).append(':').append(
                 lookup(NAME, params, String.class)).toString();
     }
@@ -209,72 +223,6 @@ public class CachedDataStoreFactory extends AbstractDataStoreFactory implements 
             return result;
         }
 
-    }
-
-    private static class MapParam extends Param {
-
-        public MapParam(String arg0, Class<?> arg1, InternationalString arg2, boolean arg3,
-                Object arg4, Map<String, ?> arg5) {
-            super(arg0, arg1, arg2, arg3, arg4, arg5);
-        }
-
-        public MapParam(String arg0, Class<?> arg1, InternationalString arg2, boolean arg3,
-                Object arg4) {
-            super(arg0, arg1, arg2, arg3, arg4);
-        }
-
-        public MapParam(String arg0, Class<?> arg1, String arg2, boolean arg3, Object arg4,
-                Map<String, ?> arg5) {
-            super(arg0, arg1, arg2, arg3, arg4, arg5);
-        }
-
-        public MapParam(String arg0, Class<?> arg1, String arg2, boolean arg3, Object arg4,
-                Object... arg5) {
-            super(arg0, arg1, arg2, arg3, arg4, arg5);
-        }
-
-        public MapParam(String arg0, Class<?> arg1, String arg2, boolean arg3, Object arg4) {
-            super(arg0, arg1, arg2, arg3, arg4);
-        }
-
-        public MapParam(String arg0, Class<?> arg1, String arg2, boolean arg3) {
-            super(arg0, arg1, arg2, arg3);
-        }
-
-        public MapParam(String arg0, Class<?> arg1, String arg2) {
-            super(arg0, arg1, arg2);
-        }
-
-        public MapParam(String arg0, Class<?> arg1) {
-            super(arg0, arg1);
-        }
-
-        public MapParam(String arg0) {
-            super(arg0);
-        }
-
-        /** serialVersionUID */
-        private static final long serialVersionUID = -4043222059380622418L;
-
-        @Override
-        public Object parse(String text) throws IOException {
-            return parseMap(text);
-        }
-
-        @Override
-        public String text(Object value) {
-            return value.toString();
-        }
-
-        private Map<String, Serializable> parseMap(String input) {
-            final Map<String, Serializable> map = new HashMap<String, Serializable>();
-            input = input.substring(1, input.length() - 1);
-            for (String pair : input.split(",")) {
-                String[] kv = pair.split("=");
-                map.put(kv[0].trim(), kv[1].trim());
-            }
-            return map;
-        }
     }
 
 }

@@ -1,5 +1,6 @@
 package org.geotools.data.cache.op;
 
+import java.io.Serializable;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -14,11 +15,12 @@ import org.springframework.cache.Cache.ValueWrapper;
 public abstract class BaseOp<T, C, K> implements CachedOp<T, C, K> {
     protected final transient Logger LOGGER = org.geotools.util.logging.Logging
             .getLogger(getClass().getPackage().getName());
-    
+
     public final static String CACHEDOP_STORE_NAME = "CachedOpStatus";
-    
-    protected final static transient org.springframework.cache.Cache ehache=EHCacheUtils.getCacheUtils().getCache(CACHEDOP_STORE_NAME);
-    
+
+    protected final static transient org.springframework.cache.Cache ehache = EHCacheUtils
+            .getCacheUtils().getCache(CACHEDOP_STORE_NAME);
+
     // cached datastore
     protected final transient DataStore cache;
 
@@ -27,15 +29,25 @@ public abstract class BaseOp<T, C, K> implements CachedOp<T, C, K> {
 
     // manager
     protected final transient CacheManager cacheManager;
-    
+
     // UID for this instance
-    protected String uid;
+    protected final String uid;
 
     // status of this operation
-    protected Map<Integer, Boolean> isCached;
-    
+    protected Map<Integer, Boolean> isCachedMap;
+
     // lock
-    protected final transient ReadWriteLock isCachedLock=new ReentrantReadWriteLock();
+    protected final transient ReadWriteLock isCachedLock = new ReentrantReadWriteLock();
+
+    public BaseOp(CacheManager cacheManager, final String uid) {
+        if (uid == null || uid.isEmpty() || cacheManager == null)
+            throw new IllegalArgumentException(
+                    "Unable to build a CachedOp without the cacheManager or the unique name");
+        this.cacheManager = cacheManager;
+        this.cache = cacheManager.getCache();
+        this.source = cacheManager.getSource();
+        this.uid = uid;
+    }
 
     public String getUid() {
         return uid;
@@ -43,32 +55,43 @@ public abstract class BaseOp<T, C, K> implements CachedOp<T, C, K> {
 
     @Override
     public void dispose() {
-        // if (source!=null)
-        // source.dispose();
         if (cache != null)
             cache.dispose();
     }
 
     @Override
-    public String save() {
-        ehache.put(uid, isCached);
-        return uid;
+    public Serializable[] save() {
+        ehache.put(uid, isCachedMap);
+        return new String[] { uid };
     }
 
     @Override
-    public void load(String obj) {
-        if (obj==null || obj.isEmpty()){
-            throw new IllegalArgumentException("Unable to load using a null or empty UID");
+    public void clear() {
+        try {
+            isCachedLock.writeLock().lock();
+            isCachedMap.clear();
+        } finally {
+            isCachedLock.writeLock().unlock();
         }
-        uid=obj;
-        ValueWrapper isCachedObj = ehache.get(obj);
+        ehache.evict(uid);
+    }
+
+    @Override
+    public void load(Serializable... obj) {
+
+        // in this implementation input string is not used
+        // if (obj==null || obj.isEmpty()){
+        // throw new IllegalArgumentException("Unable to load using a null or empty UID");
+        // }
+
+        ValueWrapper isCachedObj = ehache.get(uid);
         try {
             isCachedLock.writeLock().lock();
             if (isCachedObj != null) {
-                isCached = (Map<Integer, Boolean>) isCachedObj.get();
+                isCachedMap = (Map<Integer, Boolean>) isCachedObj.get();
             } else {
                 LOGGER.warning("No cached status is found");
-                isCached = new HashMap<Integer, Boolean>();
+                isCachedMap = new HashMap<Integer, Boolean>();
             }
         } finally {
             isCachedLock.writeLock().unlock();
@@ -79,7 +102,7 @@ public abstract class BaseOp<T, C, K> implements CachedOp<T, C, K> {
     public boolean isCached(K... o) {
         try {
             isCachedLock.readLock().lock();
-            Object b = isCached.get(Arrays.deepHashCode(o));
+            Object b = isCachedMap.get(Arrays.deepHashCode(o));
             return b != null ? (Boolean) b : false;
         } finally {
             isCachedLock.readLock().unlock();
@@ -90,21 +113,10 @@ public abstract class BaseOp<T, C, K> implements CachedOp<T, C, K> {
     public void setCached(boolean isCached, K... key) {
         try {
             isCachedLock.writeLock().lock();
-            this.isCached.put(Arrays.deepHashCode(key), isCached);
+            this.isCachedMap.put(Arrays.deepHashCode(key), isCached);
         } finally {
             isCachedLock.writeLock().unlock();
         }
-    }
-
-    public BaseOp(CacheManager cacheManager, final String uniqueName) {
-        if (uniqueName==null || uniqueName.isEmpty() || cacheManager==null)
-            throw new IllegalArgumentException("Unable to build a CachedOp without the cacheManager or the unique name");
-        this.cacheManager = cacheManager;
-        this.cache = cacheManager.getCache();
-        this.source = cacheManager.getSource();
-        
-        // load
-        load(uniqueName);
     }
 
     /**
@@ -118,21 +130,5 @@ public abstract class BaseOp<T, C, K> implements CachedOp<T, C, K> {
             throw new IllegalArgumentException("wrong argument passed");
         }
     }
-
-    // @Override
-    // public T getCache(C ... key) throws IOException {
-    // T op = null;
-    // if (!isCached(key)) {
-    // op = operation(o);
-    // setCached(key, cache(op));
-    // }
-    // if (isCached(key)) {
-    // return getCachedInternal(key, o);
-    // } else {
-    // return op;
-    // }
-    // }
-    //
-    // protected abstract T getCachedInternal(K key, C o) throws IOException;
 
 }

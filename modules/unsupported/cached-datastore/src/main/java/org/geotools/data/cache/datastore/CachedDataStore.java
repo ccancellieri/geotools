@@ -2,6 +2,7 @@ package org.geotools.data.cache.datastore;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.logging.Level;
 
 import org.geotools.data.DataStore;
 import org.geotools.data.Transaction;
@@ -35,20 +36,20 @@ public class CachedDataStore extends ContentDataStore {
     protected List<Name> createTypeNames() throws IOException {
         TypeNamesOp cachedOp = (TypeNamesOp) cacheManager.getCachedOp(Operation.typeNames);
         if (cachedOp != null) {
-            if (cachedOp.isCached()) {
-                return (List<Name>) cachedOp.getCache();
-            } else {
-                final List<Name> names = store.getNames();
-                cachedOp.putCache(names);
-                return names;
+            try {
+                if (cachedOp.isCached()) {
+                    return (List<Name>) cachedOp.getCache();
+                } else {
+                    final List<Name> names = store.getNames();
+                    cachedOp.putCache(names);
+                    cachedOp.setCached(true);
+                    return names;
+                }
+            } catch (IOException e) {
+                LOGGER.log(Level.SEVERE, e.getMessage(), e);
             }
-        } else {
-            return store.getNames();
         }
-    }
-
-    public DataStore getStore() {
-        return store;
+        return store.getNames();
     }
 
     @Override
@@ -56,35 +57,34 @@ public class CachedDataStore extends ContentDataStore {
         return new DelegateContentFeatureSource(cacheManager, entry, null,
                 store.getFeatureSource(entry.getTypeName()));
     }
-    
-    
+
     /**
-     * Returns the feature source matching the specified name and explicitly 
-     * specifies a transaction.
+     * Returns the feature source matching the specified name and explicitly specifies a transaction.
      * <p>
-     * Subclasses should not implement this method. However overriding in order 
-     * to perform a type narrowing to a subclasses of {@link ContentFeatureSource}
-     * is acceptable.
+     * Subclasses should not implement this method. However overriding in order to perform a type narrowing to a subclasses of
+     * {@link ContentFeatureSource} is acceptable.
      * </p>
-     *
+     * 
      * @see DataStore#getFeatureSource(String)
      */
     @Override
-    public ContentFeatureSource getFeatureSource(Name typeName, Transaction tx)
-        throws IOException {
-        
+    public ContentFeatureSource getFeatureSource(Name typeName, Transaction tx) throws IOException {
+
         ContentEntry entry = ensureEntry(typeName);
-        ContentFeatureSource featureSource = new DelegateContentFeatureSource(cacheManager, entry, null,
-                store.getFeatureSource(entry.getTypeName()));
+        ContentFeatureSource featureSource = new DelegateContentFeatureSource(cacheManager, entry,
+                null, store.getFeatureSource(entry.getTypeName()));
         featureSource.setTransaction(tx);
-        
-        
+
         return featureSource;
     }
-    
+
     @Override
     public void dispose() {
         super.dispose();
         cacheManager.dispose();
+    }
+
+    public CacheManager getCacheManager() {
+        return cacheManager;
     }
 }

@@ -1,6 +1,7 @@
 package org.geotools.data.cache.op;
 
 import java.io.IOException;
+import java.io.Serializable;
 
 /**
  * 
@@ -15,16 +16,21 @@ public interface CachedOp<T, C, K> {
     /**
      * @return a string representing the status of this cachedOp object (note: this should be loadable by the {@link #load(String)} method)
      */
-    public String save();
+    public Serializable[] save();
     
     /**
-     * load the status of this cachedOp from the input string setting accordingly the status of this object
+     * load the status of this cachedOp using the input string (if needed) to setup accordingly the status of this object
      * @param obj the status to load
      */
-    public void load(String obj);
+    public void load(Serializable ... obj);
     
     /**
-     * this is a dispose method (will be closed when this object is no more used)
+     * clear the status of this cachedOp
+     */
+    public void clear();
+    
+    /**
+     * this is a dispose method (should be called when this object is no more used)
      */
     public void dispose();
 

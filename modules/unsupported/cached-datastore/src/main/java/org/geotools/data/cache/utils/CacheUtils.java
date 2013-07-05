@@ -1,13 +1,16 @@
 package org.geotools.data.cache.utils;
 
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeSet;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import org.geotools.data.cache.op.CachedOp;
 import org.geotools.data.cache.op.CachedOpSPI;
+import org.geotools.data.cache.op.Operation;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
@@ -32,6 +35,33 @@ public class CacheUtils implements ApplicationContextAware {
 
     public List<CachedOpSPI<CachedOp<?, ?, ?>>> getCachedOps() {
         return catalog;
+    }
+
+    public TreeSet<CachedOpSPI<CachedOp<?, ?, ?>>> getCachedOpSPITree(Operation op) {
+        final TreeSet<CachedOpSPI<CachedOp<?, ?, ?>>> tree = new TreeSet<CachedOpSPI<CachedOp<?, ?, ?>>>(
+                new Comparator<CachedOpSPI<CachedOp<?, ?, ?>>>() {
+                    @Override
+                    public int compare(CachedOpSPI<CachedOp<?, ?, ?>> o1,
+                            CachedOpSPI<CachedOp<?, ?, ?>> o2) {
+                        return o1.priority() > o2.priority() ? 1 : -1;
+                    }
+                });
+        for (CachedOpSPI<CachedOp<?, ?, ?>> spi : getCachedOps()) {
+            if (spi.getOp().equals(op)) {
+                tree.add(spi);
+            }
+        }
+        return tree;
+    }
+
+    public CachedOpSPI<CachedOp<?, ?, ?>> getFirstCachedOpSPI(Operation op) {
+        final TreeSet<CachedOpSPI<CachedOp<?, ?, ?>>> spiTree = getCachedOpSPITree(op);
+        if (!spiTree.isEmpty()) {
+            return spiTree.first();
+        } else {
+            LOGGER.log(Level.WARNING, "Unable to locate a CachedOpSPI for Operation: " + op);
+        }
+        return null;
     }
 
     public static Map<String, String> parseMap(String input) {

@@ -1,6 +1,8 @@
 package org.geotools.data.cache.utils;
 
 import java.io.IOException;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import org.geotools.data.FeatureReader;
 import org.geotools.data.Query;
@@ -24,6 +26,8 @@ import org.opengis.feature.type.Name;
  */
 @SuppressWarnings("unchecked")
 public class DelegateContentFeatureSource extends ContentFeatureSource {
+    private final transient Logger LOGGER = org.geotools.util.logging.Logging.getLogger(getClass()
+            .getPackage().getName());
 
     // source
     protected final SimpleFeatureSource delegate;
@@ -51,13 +55,18 @@ public class DelegateContentFeatureSource extends ContentFeatureSource {
         final CachedOp<ReferencedEnvelope, Query, Query> op = (CachedOp<ReferencedEnvelope, Query, Query>) cacheManager
                 .getCachedOp(Operation.bounds);
         if (op != null) {
-            if (!op.isCached(query)) {
-                op.putCache(delegate.getBounds(query));
-                op.setCached(true, query);
+            try {
+                if (!op.isCached(query)) {
+                    op.putCache(delegate.getBounds(query));
+                    op.setCached(true, query);
+                }
+                return op.getCache(query);
+
+            } catch (IOException e) {
+                LOGGER.log(Level.SEVERE, e.getMessage(), e);
             }
-            return op.getCache(query);
-        } else
-            return delegate.getBounds(query);
+        }
+        return delegate.getBounds(query);
     }
 
     @Override
@@ -65,13 +74,17 @@ public class DelegateContentFeatureSource extends ContentFeatureSource {
         final CachedOp<Integer, Query, Query> op = (CachedOp<Integer, Query, Query>) cacheManager
                 .getCachedOp(Operation.count);
         if (op != null) {
-            if (!op.isCached(query)) {
-                op.putCache(delegate.getCount(query));
-                op.setCached(true, query);
+            try {
+                if (!op.isCached(query)) {
+                    op.putCache(delegate.getCount(query));
+                    op.setCached(true, query);
+                }
+                return op.getCache(query);
+            } catch (IOException e) {
+                LOGGER.log(Level.SEVERE, e.getMessage(), e);
             }
-            return op.getCache(query);
-        } else
-            return delegate.getCount(query);
+        }
+        return delegate.getCount(query);
     }
 
     @Override
@@ -87,7 +100,7 @@ public class DelegateContentFeatureSource extends ContentFeatureSource {
                 }
                 return new SimpleFeatureCollectionReader(cacheManager, op.getCache(query));
             } catch (IOException e) {
-                // LOGGER.log(Level.FINER, e.getMessage(), e);
+                LOGGER.log(Level.SEVERE, e.getMessage(), e);
             }
         }
         return new SimpleFeatureCollectionReader(cacheManager, delegate.getFeatures(query));
@@ -107,7 +120,7 @@ public class DelegateContentFeatureSource extends ContentFeatureSource {
                 }
                 return op.getCache(name);
             } catch (IOException e) {
-                // LOGGER.log(Level.FINER, e.getMessage(), e);
+                LOGGER.log(Level.SEVERE, e.getMessage(), e);
             }
         }
         return delegate.getSchema();

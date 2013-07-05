@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.util.NoSuchElementException;
 
 import org.geotools.data.FeatureReader;
-import org.geotools.data.Query;
 import org.geotools.data.cache.op.CacheManager;
 import org.geotools.data.cache.op.CachedOp;
 import org.geotools.data.cache.op.Operation;
