@@ -49,6 +49,17 @@ public class CacheManager {
     public CachedOp<?, ?, ?> getCachedOp(Operation op) {
         return status.getCachedOp(op);
     }
+    
+    public <T> T getCachedOpOfType(Operation op, Class<T> clazz) {
+        final Object obj=status.getCachedOp(op);
+        if (obj==null)
+            return null;
+        if (clazz.isAssignableFrom(obj.getClass()))
+            return clazz.cast(obj);
+        else
+            return null;
+    }
+    
 
     public void save() {
         status.save();

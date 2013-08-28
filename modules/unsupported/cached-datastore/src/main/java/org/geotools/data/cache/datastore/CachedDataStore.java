@@ -34,28 +34,30 @@ public class CachedDataStore extends ContentDataStore {
 
     @Override
     protected List<Name> createTypeNames() throws IOException {
-        TypeNamesOp cachedOp = (TypeNamesOp) cacheManager.getCachedOp(Operation.typeNames);
+        TypeNamesOp cachedOp = cacheManager.getCachedOpOfType(Operation.typeNames,TypeNamesOp.class);
+        List<Name> names=null;
         if (cachedOp != null) {
             try {
-                if (cachedOp.isCached()) {
-                    return (List<Name>) cachedOp.getCache();
+                if (!cachedOp.isCached(null)) {
+                    names=cachedOp.updateCache(null);
+                    cachedOp.setCached(names!=null?true:false, null);
                 } else {
-                    final List<Name> names = store.getNames();
-                    cachedOp.putCache(names);
-                    cachedOp.setCached(true);
-                    return names;
+                    names=cachedOp.getCache(null);
                 }
             } catch (IOException e) {
                 LOGGER.log(Level.SEVERE, e.getMessage(), e);
             }
         }
-        return store.getNames();
+        if (names!=null){
+            return names;
+        } else {
+            return store.getNames();
+        }
     }
 
     @Override
     protected ContentFeatureSource createFeatureSource(ContentEntry entry) throws IOException {
-        return new DelegateContentFeatureSource(cacheManager, entry, null,
-                store.getFeatureSource(entry.getTypeName()));
+        return new DelegateContentFeatureSource(cacheManager, entry, null);
     }
 
     /**
@@ -70,9 +72,9 @@ public class CachedDataStore extends ContentDataStore {
     @Override
     public ContentFeatureSource getFeatureSource(Name typeName, Transaction tx) throws IOException {
 
-        ContentEntry entry = ensureEntry(typeName);
-        ContentFeatureSource featureSource = new DelegateContentFeatureSource(cacheManager, entry,
-                null, store.getFeatureSource(entry.getTypeName()));
+        final ContentEntry entry = ensureEntry(typeName);
+        final ContentFeatureSource featureSource = new DelegateContentFeatureSource(cacheManager,
+                entry, null);
         featureSource.setTransaction(tx);
 
         return featureSource;

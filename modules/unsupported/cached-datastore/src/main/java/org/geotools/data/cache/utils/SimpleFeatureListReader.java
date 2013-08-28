@@ -9,7 +9,7 @@ import org.geotools.data.FeatureReader;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
 
-public class SimpleListReader implements FeatureReader<SimpleFeatureType, SimpleFeature> {
+public class SimpleFeatureListReader implements FeatureReader<SimpleFeatureType, SimpleFeature> {
 
     private final Iterator<SimpleFeature> it;
 
@@ -17,7 +17,7 @@ public class SimpleListReader implements FeatureReader<SimpleFeatureType, Simple
 
     private final SimpleFeatureType schema;
 
-    public SimpleListReader(List<SimpleFeature> coll, SimpleFeatureType schema) {
+    public SimpleFeatureListReader(List<SimpleFeature> coll, SimpleFeatureType schema) {
         this.collection = coll;
         this.it = coll.iterator();
         this.schema = schema;

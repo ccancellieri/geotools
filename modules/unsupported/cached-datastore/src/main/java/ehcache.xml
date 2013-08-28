@@ -19,7 +19,7 @@
 		diskExpiryThreadIntervalSeconds="120" memoryStoreEvictionPolicy="LRU" />
 
 	<!-- SRT FeatureSourceOp implementation -->
-	<cache name="featureSource" maxElementsInMemory="100" eternal="false"
+	<cache name="featureSource" maxElementsInMemory="100" eternal="true"
 		timeToIdleSeconds="120" timeToLiveSeconds="120" overflowToDisk="true"
 		maxElementsOnDisk="10000000" diskPersistent="false"
 		diskExpiryThreadIntervalSeconds="120" memoryStoreEvictionPolicy="LRU" />

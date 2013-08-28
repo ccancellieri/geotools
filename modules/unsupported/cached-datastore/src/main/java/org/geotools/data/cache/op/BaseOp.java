@@ -1,14 +1,12 @@
 package org.geotools.data.cache.op;
 
 import java.io.Serializable;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.logging.Logger;
 
-import org.geotools.data.DataStore;
 import org.geotools.data.cache.utils.EHCacheUtils;
 import org.springframework.cache.Cache.ValueWrapper;
 
@@ -21,11 +19,11 @@ public abstract class BaseOp<T, C, K> implements CachedOp<T, C, K> {
     protected final static transient org.springframework.cache.Cache ehache = EHCacheUtils
             .getCacheUtils().getCache(CACHEDOP_STORE_NAME);
 
-    // cached datastore
-    protected final transient DataStore cache;
-
-    // cached datastore
-    protected final transient DataStore source;
+    // // cached datastore
+    // protected final transient DataStore cache;
+    //
+    // // cached datastore
+    // protected final transient DataStore source;
 
     // manager
     protected final transient CacheManager cacheManager;
@@ -34,7 +32,7 @@ public abstract class BaseOp<T, C, K> implements CachedOp<T, C, K> {
     protected final String uid;
 
     // status of this operation
-    protected Map<Integer, Boolean> isCachedMap;
+    protected Map<Object, Boolean> isCachedMap;
 
     // lock
     protected final transient ReadWriteLock isCachedLock = new ReentrantReadWriteLock();
@@ -44,8 +42,7 @@ public abstract class BaseOp<T, C, K> implements CachedOp<T, C, K> {
             throw new IllegalArgumentException(
                     "Unable to build a CachedOp without the cacheManager or the unique name");
         this.cacheManager = cacheManager;
-        this.cache = cacheManager.getCache();
-        this.source = cacheManager.getSource();
+
         this.uid = uid;
     }
 
@@ -55,12 +52,12 @@ public abstract class BaseOp<T, C, K> implements CachedOp<T, C, K> {
 
     @Override
     public void dispose() {
-        if (cache != null)
-            cache.dispose();
+        if (cacheManager.getCache() != null)
+            cacheManager.getCache().dispose();
     }
 
     @Override
-    public Serializable[] save() {
+    public Serializable save() {
         ehache.put(uid, isCachedMap);
         return new String[] { uid };
     }
@@ -77,7 +74,7 @@ public abstract class BaseOp<T, C, K> implements CachedOp<T, C, K> {
     }
 
     @Override
-    public void load(Serializable... obj) {
+    public void load(Serializable obj) {
 
         // in this implementation input string is not used
         // if (obj==null || obj.isEmpty()){
@@ -88,10 +85,10 @@ public abstract class BaseOp<T, C, K> implements CachedOp<T, C, K> {
         try {
             isCachedLock.writeLock().lock();
             if (isCachedObj != null) {
-                isCachedMap = (Map<Integer, Boolean>) isCachedObj.get();
+                isCachedMap = (Map<Object, Boolean>) isCachedObj.get();
             } else {
                 LOGGER.warning("No cached status is found");
-                isCachedMap = new HashMap<Integer, Boolean>();
+                isCachedMap = new HashMap<Object, Boolean>();
             }
         } finally {
             isCachedLock.writeLock().unlock();
@@ -99,10 +96,10 @@ public abstract class BaseOp<T, C, K> implements CachedOp<T, C, K> {
     }
 
     @Override
-    public boolean isCached(K... o) {
+    public boolean isCached(K o) {
         try {
             isCachedLock.readLock().lock();
-            Object b = isCachedMap.get(Arrays.deepHashCode(o));
+            Object b = isCachedMap.get(o.hashCode());
             return b != null ? (Boolean) b : false;
         } finally {
             isCachedLock.readLock().unlock();
@@ -110,10 +107,10 @@ public abstract class BaseOp<T, C, K> implements CachedOp<T, C, K> {
     }
 
     @Override
-    public void setCached(boolean isCached, K... key) {
+    public void setCached(boolean isCached, K key) {
         try {
             isCachedLock.writeLock().lock();
-            this.isCachedMap.put(Arrays.deepHashCode(key), isCached);
+            this.isCachedMap.put(key.hashCode(), isCached);
         } finally {
             isCachedLock.writeLock().unlock();
         }

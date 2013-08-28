@@ -10,8 +10,7 @@ import org.geotools.data.cache.op.CacheManager;
 import org.geotools.data.cache.op.NextOp;
 import org.geotools.data.cache.op.Operation;
 import org.geotools.data.cache.op.SchemaOp;
-import org.geotools.data.simple.SimpleFeatureCollection;
-import org.geotools.data.simple.SimpleFeatureIterator;
+import org.opengis.feature.Property;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.feature.type.Name;
@@ -21,28 +20,28 @@ import org.opengis.feature.type.Name;
  * @author carlo cancellieri - GeoSolutions SAS
  * 
  */
-public class SimpleFeatureCollectionReader implements
+public class PipelinedSimpleFeatureReader implements
         FeatureReader<SimpleFeatureType, SimpleFeature> {
 
     private final transient Logger LOGGER = org.geotools.util.logging.Logging.getLogger(getClass()
             .getPackage().getName());
 
-    private final SimpleFeatureCollection[] collection;
+    private final FeatureReader<SimpleFeatureType, SimpleFeature>[] frc;
 
     private final SimpleFeatureType schema;
 
-    // private final CacheManager cacheManager;
-
+//    private final CacheManager cacheManager;
+    
     private final SchemaOp schemaOp;
+    
+    private final NextOp nextOp; 
 
-    private final NextOp nextOp;
+    private FeatureReader<SimpleFeatureType, SimpleFeature> fr;
 
-    private SimpleFeatureIterator it;
+    private int currentReader = 0;
 
-    private int currentCollection = 0;
-
-    public SimpleFeatureCollectionReader(CacheManager cacheManager, SimpleFeatureCollection... coll)
-            throws IOException {
+    public PipelinedSimpleFeatureReader(CacheManager cacheManager,
+            FeatureReader<SimpleFeatureType, SimpleFeature>... coll) throws IOException {
         if (coll == null || coll.length == 0) {
             throw new IllegalArgumentException("Unable to create a " + this.getClass()
                     + " with a null or empty list fo FeatureCollection");
@@ -51,26 +50,25 @@ public class SimpleFeatureCollectionReader implements
                     + " with a null cacheManager");
         }
 
-        this.collection = coll;
-        // this.cacheManager = cacheManager;
-        final SimpleFeatureCollection c = nextCollection();
-        this.schema = c.getSchema();
-        this.it = c.features();
+        this.frc = coll;
+//        this.cacheManager = cacheManager;
+        this.fr = nextReader();
+        this.schema = fr.getFeatureType();
 
         this.schemaOp = cacheManager.getCachedOpOfType(Operation.schema, SchemaOp.class);
         this.nextOp = cacheManager.getCachedOpOfType(Operation.next, NextOp.class);
     }
 
-    private SimpleFeatureCollection nextCollection() throws IOException {
-        SimpleFeatureCollection coll = collection[this.currentCollection++];
-        if (schema != null && !schema.equals(coll.getSchema())) {
+    private FeatureReader<SimpleFeatureType, SimpleFeature> nextReader() throws IOException {
+        FeatureReader<SimpleFeatureType, SimpleFeature> fr = frc[this.currentReader++];
+        if (schema != null && schema.equals(fr.getFeatureType())) {
             throw new IOException("Unable to read from collections with different schemas");
         }
-        return coll;
+        return fr;
     }
 
     private boolean hasNextCollection() {
-        return this.currentCollection < collection.length;
+        return this.currentReader < frc.length;
     }
 
     @Override
@@ -101,7 +99,7 @@ public class SimpleFeatureCollectionReader implements
     @Override
     public SimpleFeature next() throws IOException, IllegalArgumentException,
             NoSuchElementException {
-        final SimpleFeature sf = it.next();
+        final SimpleFeature sf = fr.next();
         final SimpleFeature df = sf;
         // try using next operation
         if (nextOp != null) {
@@ -118,16 +116,19 @@ public class SimpleFeatureCollectionReader implements
                 return feature;
             }
         }
+        for (Property p : sf.getProperties()) {
+            df.getProperty(p.getName()).setValue(p.getValue());
+        }
         return df;
     }
 
     @Override
     public boolean hasNext() throws IOException {
-        if (it.hasNext()) {
+        if (fr.hasNext()) {
             return true;
         } else if (hasNextCollection()) {
-            it.close();
-            it = nextCollection().features();
+            fr.close();
+            fr = nextReader();
             return hasNext();
         } else {
             return false;
@@ -136,7 +137,7 @@ public class SimpleFeatureCollectionReader implements
 
     @Override
     public void close() throws IOException {
-        it.close();
+        fr.close();
     }
 
 }

@@ -1,13 +1,11 @@
 package org.geotools.data.cache.utils;
 
 import java.io.IOException;
-import java.io.Serializable;
 import java.io.StringWriter;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.StringTokenizer;
 
 import org.geotools.data.DataAccessFactory.Param;
 import org.geotools.data.cache.op.CachedOpSPI;

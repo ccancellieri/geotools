@@ -3,55 +3,60 @@ package org.geotools.data.cache.op;
 import java.io.IOException;
 import java.util.List;
 
+import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.feature.type.Name;
 
-public class TypeNamesOp extends BaseOp<List<Name>, TypeNamesOp, TypeNamesOp> {
+public class TypeNamesOp extends BaseOp<List<Name>, String, String> {
 
     public TypeNamesOp(CacheManager cacheManager, final String uniqueName) {
-        super(cacheManager,uniqueName);
+        super(cacheManager, uniqueName);
     }
 
     @Override
-    public List<Name> getCache(TypeNamesOp... o) throws IOException {
-        return cache.getNames();
+    public List<Name> getCache(String o) throws IOException {
+        return cacheManager.getCache().getNames();
     }
 
     @Override
-    public boolean isCached(TypeNamesOp... o) {
-        return super.isCached(this);
+    public boolean isCached(String o) {
+        return super.isCached(getUid()+getClass());
     };
 
+    /**
+     * @param isCached - used to set or invalidate cached values
+     * @param key - unused
+     */
     @Override
-    public void setCached(boolean isCached, TypeNamesOp... key) {
-        super.setCached(true, this);
+    public void setCached(boolean isCached, String key) {
+        super.setCached(true, getUid()+getClass());
     };
 
+    /**
+     * @param arguments are unused
+     */
     @Override
-    public boolean putCache(List<Name>... arg) throws IOException {
-        verify(arg);
-        final SchemaOp op = (SchemaOp) cacheManager.getCachedOp(Operation.schema);
+    public List<Name> updateCache(String arg) throws IOException {
+        final List<Name> names = cacheManager.getSource().getNames();
+        final SchemaOp op = cacheManager.getCachedOpOfType(Operation.schema,SchemaOp.class);
         // create schemas
-        for (Name name : arg[0]) {
+        for (Name name : names) {
+            SimpleFeatureType schema = null;
             if (op != null) {
-                // if (op.isCached(name)) {
-                // force update
-                op.putCache(source.getSchema(name));
-                // cache.updateSchema(name, op.getCache(name));
-                // } else {
-                // update schemaOp cache
-                // op.putCache(source.getSchema(name));
-                // actually cache the schema caching it into the TypeNameOp
-                // cache.createSchema(op.getCache(name));
-                // }
-            } else {
-                // LOG warn no schema wrapping means no timestamp and no hitcache
-                cache.createSchema(source.getSchema(name));
+                if (!op.isCached(name)) {
+                    schema = op.updateCache(name);
+                    op.setCached(schema!=null?true:false, name);
+                } else {
+                    schema = op.getCache(name);
+                }
             }
-
+            if (schema != null) {
+                cacheManager.getCache().createSchema(schema);
+            } else {
+                // LOG warn no schema wrapping means no timestamp is used
+                cacheManager.getCache().createSchema(cacheManager.getSource().getSchema(name));
+            }
         }
-        // set cached true
-        setCached(Boolean.TRUE, this);
 
-        return Boolean.TRUE;
+        return names;
     }
 }

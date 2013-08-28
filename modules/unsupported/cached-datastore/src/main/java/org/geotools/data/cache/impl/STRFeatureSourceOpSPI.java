@@ -5,10 +5,13 @@ import java.io.IOException;
 import org.geotools.data.cache.op.CacheManager;
 import org.geotools.data.cache.op.CachedOpSPI;
 import org.geotools.data.cache.op.Operation;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 
-@Component
+@Service
 public class STRFeatureSourceOpSPI extends CachedOpSPI<STRFeatureSourceOp> {
+
+    /** serialVersionUID */
+    private static final long serialVersionUID = 8822095832437682003L;
 
     @Override
     public Operation getOp() {
@@ -22,6 +25,6 @@ public class STRFeatureSourceOpSPI extends CachedOpSPI<STRFeatureSourceOp> {
 
     @Override
     public long priority() {
-        return 0;
+        return 1;
     }
 }

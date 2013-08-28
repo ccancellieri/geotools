@@ -2,35 +2,37 @@ package org.geotools.data.cache.impl;
 
 import java.io.IOException;
 
+import org.geotools.data.Query;
 import org.geotools.data.cache.op.BaseOp;
 import org.geotools.data.cache.op.CacheManager;
 import org.geotools.data.simple.SimpleFeatureCollection;
 import org.geotools.data.simple.SimpleFeatureSource;
-import org.geotools.data.store.ContentDataStore;
-import org.geotools.data.store.ContentEntry;
-import org.geotools.feature.NameImpl;
+import org.opengis.feature.type.Name;
 
-public class STRFeatureCollectionOp extends BaseOp<SimpleFeatureCollection, String, String> {
+public class STRFeatureCollectionOp extends BaseOp<SimpleFeatureCollection, Query, Name> {
 
-    STRFeatureSourceOp strOp ;
-    
-    public STRFeatureCollectionOp(CacheManager cacheManager, final String uniqueName) {
-        super(cacheManager,uniqueName);
+    private final STRFeatureSourceOp strOp;
+
+    public STRFeatureCollectionOp(CacheManager cacheManager, final String uid) throws IOException {
+        super(cacheManager, uid);
         strOp = new STRFeatureSourceOp(cacheManager, getUid());
     }
 
     @Override
-    public SimpleFeatureCollection getCache(String... typeName) throws IOException {
-            strOp.setEntry(new ContentEntry((ContentDataStore) cacheManager.getSource(), new NameImpl(typeName[0])));
-            SimpleFeatureSource s = strOp.getCache(typeName);
-            return s.getFeatures();
+    public SimpleFeatureCollection getCache(Query query) throws IOException {
+        verify(query);
+        SimpleFeatureSource s = strOp.getCache(query);
+        return s.getFeatures();
     }
 
     @Override
-    public boolean putCache(SimpleFeatureCollection... collection) throws IOException {
-        strOp.putCache(cacheManager.getSource().getFeatureSource(strOp.getEntry().getTypeName()));
-        return true;
-    }
+    public SimpleFeatureCollection updateCache(Query query) throws IOException {
+        verify(query);
 
+        // strOp.setEntry(new ContentEntry(collection[0]., name));
+        strOp.updateCache(query);
+        // cacheManager.getSource().getFeatureSource(name)
+        return null; //TODO
+    }
 
 }

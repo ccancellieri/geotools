@@ -213,7 +213,7 @@ public class CacheStatus {
                     "Unable to load an operation using a null cache manager or a null spi");
         final CachedOp<?, ?, ?> op = spi.create(cacheManager, createCachedOpUID(spi.getOp()));
         // load op
-        op.load();
+        op.load(null);
 
         cachedOpMap.put(spi.getOp(), op);
     }
