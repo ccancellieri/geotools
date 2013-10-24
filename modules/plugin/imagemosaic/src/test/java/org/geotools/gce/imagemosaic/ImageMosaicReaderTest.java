@@ -883,12 +883,13 @@ public class ImageMosaicReaderTest extends Assert{
         out.write("Loose\\ bbox=true #important for performances\n");
         out.write("Estimated\\ extends=false #important for performances\n");
         out.write("user=geosolutions\n");
-        out.write("passwd=fucktheworld\n");
-        out.write("validate \\connections=true #important for avoiding errors\n");
+        out.write("passwd=geosolutions\n");
+        out.write("validate\\ connections=true #important for avoiding errors\n");
         out.write("Connection\\ timeout=3600\n");
-        out.write("max \\connections=10 #important for performances, internal pooling\n");
-        out.write("min \\connections=5  #important for performances, internal pooling\n");
+        out.write("max\\ connections=10 #important for performances, internal pooling\n");
+        out.write("min\\ connections=5  #important for performances, internal pooling\n");
         out.flush();
+        out.close();
         
         FileUtils.deleteQuietly(zipFile);
         
@@ -2310,6 +2311,66 @@ public class ImageMosaicReaderTest extends Assert{
     		
     		
     	}
+
+    @Test
+    public void testExistingSchema() throws Exception {
+
+        final File workDir = new File(TestData.file(this, "."), "water_temp3");
+        if (!workDir.mkdir()) {
+            FileUtils.deleteDirectory(workDir);
+            assertTrue("Unable to create workdir:" + workDir, workDir.mkdir());
+        }
+        FileUtils
+                .copyFile(TestData.file(this, "watertemp.zip"), new File(workDir, "watertemp.zip"));
+        TestData.unzipFile(this, "water_temp3/watertemp.zip");
+        final URL timeElevURL = TestData.url(this, "water_temp3");
+//
+
+
+        // now start the test
+        AbstractGridFormat format = TestUtils.getFormat(timeElevURL);
+        assertNotNull(format);
+        ImageMosaicReader reader = TestUtils.getReader(timeElevURL, format);
+        assertNotNull(reader);
+
+        reader.dispose();
+        
+        // append the parameter to the indexer.properties
+        FileWriter out = null;
+        try {
+            out = new FileWriter(new File(TestData.file(this, "."),
+                    "/water_temp3/indexer.properties"),true);
+            out.write("UseExistingSchema=true\n");
+            out.flush();
+        } finally {
+            if (out != null) {
+                IOUtils.closeQuietly(out);
+            }
+        }
+        
+        // remove existing properties file and sample_image
+        File sampleImage=new File(TestData.file(this, "."),"/water_temp3/sample_image");
+        assertTrue(sampleImage.exists());
+        sampleImage.delete();
+        File mosaicProperties=new File(TestData.file(this, "."),"/water_temp3/water_temp3.properties");
+        assertTrue(mosaicProperties.exists());
+        mosaicProperties.delete();
+        
+        // now start the test
+        format = TestUtils.getFormat(timeElevURL);
+        assertNotNull(format);
+        reader = TestUtils.getReader(timeElevURL, format);
+        assertNotNull(reader);
+        
+        // the mosaic is correctly created
+        assertTrue(sampleImage.exists());
+        assertTrue(mosaicProperties.exists());
+
+        // clean up
+        if (!INTERACTIVE) {
+            FileUtils.deleteDirectory(TestData.file(this, "water_temp3"));
+        }
+    }
 
     @AfterClass
 	public static void close(){
