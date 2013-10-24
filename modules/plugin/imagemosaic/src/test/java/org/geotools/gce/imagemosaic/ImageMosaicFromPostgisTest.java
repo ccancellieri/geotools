@@ -36,6 +36,7 @@ import org.geotools.test.OnlineTestCase;
 import org.geotools.test.TestData;
 import org.geotools.util.logging.Logging;
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 
 /**
@@ -85,6 +86,7 @@ public class ImageMosaicFromPostgisTest extends OnlineTestCase {
      * @throws Exception
      */
     @Test
+    @Ignore
     public void testCreateImageMosaicFromTable() throws Exception {
 //        final File workDir = new File(TestData.file(this, "."), tempFolderName1);
 //        if (!workDir.exists())

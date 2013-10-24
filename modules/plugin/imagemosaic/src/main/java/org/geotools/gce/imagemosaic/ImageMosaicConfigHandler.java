@@ -76,13 +76,12 @@ import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.referencing.crs.CoordinateReferenceSystem;
 
 /**
- * This class is in responsible for creating the index for a mosaic of images that we want to tie together as a single coverage.
+ * This class is in responsible for creating and managing the catalog and the configuration of the mosaic
  * 
  * @author Carlo Cancellieri - GeoSolutions SAS
  * 
  * @source $URL$
  */
-@SuppressWarnings("rawtypes")
 public class ImageMosaicConfigHandler {
 
     /** Default Logger * */
@@ -371,11 +370,11 @@ public class ImageMosaicConfigHandler {
             }
             // complete initialization of mosaic configuration
             if (configurations != null && !configurations.isEmpty()) {
-                boolean haveConfigs = configurations != null && !configurations.isEmpty(); 
+                boolean haveConfigs = configurations != null && !configurations.isEmpty();
                 Set<String> keys = null;
                 int keySize = 0;
                 if (haveConfigs || !supportsEmpty) {
-                    
+
                     // We did found some MosaicConfigurations
                     keys = configurations.keySet();
                     keySize = keys.size();
@@ -395,9 +394,10 @@ public class ImageMosaicConfigHandler {
                 // one coverage does not have the default name
                 if (supportsEmpty || keySize > 1
                         || (keySize > 0 && !base.equals(keys.iterator().next()))) {
-                    File mosaicFile = null; 
+                    File mosaicFile = null;
                     if (indexerFile.getAbsolutePath().endsWith("xml")) {
-                        mosaicFile = new File(indexerFile.getAbsolutePath().replace(Utils.INDEXER_XML, (base + ".xml")));
+                        mosaicFile = new File(indexerFile.getAbsolutePath().replace(
+                                Utils.INDEXER_XML, (base + ".xml")));
                         FileUtils.copyFile(indexerFile, mosaicFile);
                     } else if (indexerFile.getAbsolutePath().endsWith("properties")) {
                         mosaicFile = new File(indexerFile.getAbsolutePath().replace(
@@ -693,7 +693,7 @@ public class ImageMosaicConfigHandler {
      * Use the passed coverageReader to create or update the all the needed configurations<br/>
      * It not responsible of the passed coverageReader which should be disposed outside (in the caller).
      * 
-     * @param coverageReader 
+     * @param coverageReader
      * @param inputCoverageName
      * @param fileBeingProcessed
      * @param fileIndex
@@ -701,14 +701,14 @@ public class ImageMosaicConfigHandler {
      * @param transaction
      * @throws IOException
      */
-    public void updateConfiguration(GridCoverage2DReader coverageReader, final String inputCoverageName,
-            File fileBeingProcessed, int fileIndex, double numFiles, DefaultTransaction transaction)
-            throws IOException {
+    public void updateConfiguration(GridCoverage2DReader coverageReader,
+            final String inputCoverageName, File fileBeingProcessed, int fileIndex,
+            double numFiles, DefaultTransaction transaction) throws IOException {
 
         final String indexName = getRunConfiguration().getParameter(Prop.INDEX_NAME);
         final String coverageName = coverageReader instanceof StructuredGridCoverage2DReader ? inputCoverageName
                 : indexName;
-        
+
         final Indexer indexer = getRunConfiguration().getIndexer();
 
         // checking whether the coverage already exists
