@@ -87,8 +87,6 @@ import org.geotools.factory.CommonFactoryFinder;
 import org.geotools.factory.Hints;
 import org.geotools.factory.Hints.Key;
 import org.geotools.filter.visitor.DefaultFilterVisitor;
-import org.geotools.gce.imagemosaic.ImageMosaicWalker.ExceptionEvent;
-import org.geotools.gce.imagemosaic.ImageMosaicWalker.ProcessingEvent;
 import org.geotools.gce.imagemosaic.catalog.CatalogConfigurationBean;
 import org.geotools.gce.imagemosaic.catalog.index.Indexer;
 import org.geotools.gce.imagemosaic.catalog.index.IndexerUtils;
@@ -289,16 +287,20 @@ public class Utils {
                IndexerUtils.setParam(parameterList, Prop.INDEXING_DIRECTORIES, location);
 
 		// create the builder
-		final ImageMosaicWalker catalogBuilder = new ImageMosaicWalker(configuration);
+		//final ImageMosaicWalker catalogBuilder = new ImageMosaicWalker(configuration);
+               ImageMosaicEventHandlers eventHandler=new ImageMosaicEventHandlers();
+               final ImageMosaicConfigHandler catalogHandler = new ImageMosaicConfigHandler(configuration, eventHandler, false);
+               // TODO 
+               final ImageMosaicWalker walker=new ImageMosaicDirectoryWalker(catalogHandler, eventHandler);
 		
 		// this is going to help us with catching exceptions and logging them
 		final Queue<Throwable> exceptions = new LinkedList<Throwable>();
 		try {
 
-			final ImageMosaicWalker.ProcessingEventListener listener = new ImageMosaicWalker.ProcessingEventListener() {
+			final ImageMosaicEventHandlers.ProcessingEventListener listener = new ImageMosaicEventHandlers.ProcessingEventListener() {
 
 				@Override
-				public void exceptionOccurred(ExceptionEvent event) {
+				public void exceptionOccurred(ImageMosaicEventHandlers.ExceptionEvent event) {
 					final Throwable t = event.getException();
 					exceptions.add(t);
 					if (LOGGER.isLoggable(Level.SEVERE))
@@ -307,20 +309,20 @@ public class Utils {
 				}
 
 				@Override
-				public void getNotification(ProcessingEvent event) {
+				public void getNotification(ImageMosaicEventHandlers.ProcessingEvent event) {
 					if (LOGGER.isLoggable(Level.FINE))
 						LOGGER.fine(event.getMessage());
 
 				}
 
 			};
-			catalogBuilder.addProcessingEventListener(listener);
-			catalogBuilder.run();
+			eventHandler.addProcessingEventListener(listener);
+			walker.run();
 		} catch (Throwable e) {
 			LOGGER.log(Level.SEVERE, "Unable to build mosaic", e);
 			return false;
 		} finally {
-			catalogBuilder.dispose();
+			catalogHandler.dispose();
 		}
 
 		// check that nothing bad happened
