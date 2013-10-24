@@ -956,7 +956,7 @@ public class ImageMosaicReader extends AbstractGridCoverage2DReader implements S
         // run the walker and collect information
         ImageMosaicEventHandlers eventHandler = new ImageMosaicEventHandlers();
         final ImageMosaicConfigHandler catalogHandler = new ImageMosaicConfigHandler(configuration,
-                eventHandler, false);
+                eventHandler);
         // build the index
         ImageMosaicDirectoryWalker walker = new ImageMosaicDirectoryWalker(catalogHandler, eventHandler);
         walker.setFileFilter(filter);

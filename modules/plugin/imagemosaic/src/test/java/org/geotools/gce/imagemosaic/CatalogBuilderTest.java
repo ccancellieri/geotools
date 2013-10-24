@@ -160,7 +160,7 @@ public class CatalogBuilderTest extends Assert {
 		assertNotNull(c1.toString());
             ImageMosaicEventHandlers eventHandler = new ImageMosaicEventHandlers();
             final ImageMosaicConfigHandler catalogHandler = new ImageMosaicConfigHandler(c1,
-                    eventHandler, false);
+                    eventHandler);
             // TODO
             // build the index
             builder = new ImageMosaicDirectoryWalker(catalogHandler, eventHandler);
@@ -227,9 +227,9 @@ public class CatalogBuilderTest extends Assert {
 		assertNotNull(c2.toString());
             ImageMosaicEventHandlers eventHandler2 = new ImageMosaicEventHandlers();
             final ImageMosaicConfigHandler catalogHandler2 = new ImageMosaicConfigHandler(c2,
-                    eventHandler, false);
+                    eventHandler);
             // build the index
-            builder = new ImageMosaicDirectoryWalker(catalogHandler, eventHandler);
+            builder = new ImageMosaicDirectoryWalker(catalogHandler2, eventHandler);
             eventHandler2.addProcessingEventListener(new CatalogBuilderListener());
 		builder.run();
 		final File absoluteMosaic=TestData.file(this,"/overview/"+c2.getIndexName()+".shp");
@@ -308,7 +308,7 @@ public class CatalogBuilderTest extends Assert {
 
 	            ImageMosaicEventHandlers eventHandler = new ImageMosaicEventHandlers();
 	            final ImageMosaicConfigHandler catalogHandler = new ImageMosaicConfigHandler(c1,
-	                    eventHandler, false);
+	                    eventHandler);
 	            // TODO
 	            // build the index
 	            builder = new ImageMosaicDirectoryWalker(catalogHandler, eventHandler);
@@ -350,7 +350,7 @@ public class CatalogBuilderTest extends Assert {
 
                 ImageMosaicEventHandlers eventHandler = new ImageMosaicEventHandlers();
                 final ImageMosaicConfigHandler catalogHandler = new ImageMosaicConfigHandler(c1,
-                        eventHandler, false);
+                        eventHandler);
                 // TODO
                 // build the index
                 builder = new ImageMosaicDirectoryWalker(catalogHandler, eventHandler);

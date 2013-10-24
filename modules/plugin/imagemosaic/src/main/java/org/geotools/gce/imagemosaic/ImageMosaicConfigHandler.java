@@ -114,7 +114,7 @@ public class ImageMosaicConfigHandler {
 
     private ImageMosaicEventHandlers eventHandler;
 
-    private final boolean updateDataStore;
+    private boolean useExistingSchema;
 
     /**
      * Default constructor
@@ -123,13 +123,14 @@ public class ImageMosaicConfigHandler {
      * @throws IllegalArgumentException
      */
     public ImageMosaicConfigHandler(final CatalogBuilderConfiguration configuration,
-            final ImageMosaicEventHandlers eventHandler, boolean updateDataStore) {
+            final ImageMosaicEventHandlers eventHandler) {
         Utilities.ensureNonNull("runConfiguration", configuration);
 
         Utilities.ensureNonNull("eventHandler", eventHandler);
         this.eventHandler = eventHandler;
 
-        this.updateDataStore = updateDataStore;
+        this.useExistingSchema = Boolean.getBoolean(configuration
+                .getParameter(Prop.USE_EXISTING_SCHEMA));
 
         Indexer defaultIndexer = configuration.getIndexer();
         ParametersType params = null;
@@ -277,7 +278,7 @@ public class ImageMosaicConfigHandler {
         //
         // create the index
         //
-        catalog = CatalogManager.createCatalog(runConfiguration, updateDataStore);
+        catalog = CatalogManager.createCatalog(runConfiguration, !useExistingSchema);
         getParentReader().granuleCatalog = catalog;
 
         //
@@ -811,7 +812,7 @@ public class ImageMosaicConfigHandler {
             rasterManager = getParentReader().addRasterManager(currentConfigurationBean, false);
 
             // Creating a granuleStore
-            if (updateDataStore) {
+            if (!useExistingSchema) {
                 // creating the schema
                 SimpleFeatureType indexSchema = CatalogManager.createSchema(getRunConfiguration(),
                         currentConfigurationBean.getName(), actualCRS);
@@ -906,7 +907,7 @@ public class ImageMosaicConfigHandler {
             }
 
             // STEP 3
-            if (updateDataStore) {
+            if (!useExistingSchema) {
                 // create and store features
                 CatalogManager.updateCatalog(coverageName, fileBeingProcessed, coverageReader,
                         getParentReader(), catalogConfig, envelope, transaction,

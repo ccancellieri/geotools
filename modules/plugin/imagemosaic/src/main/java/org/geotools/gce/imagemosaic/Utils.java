@@ -189,6 +189,12 @@ public class Utils {
         public static final String TIME_ATTRIBUTE = "TimeAttribute";
         public static final String ELEVATION_ATTRIBUTE = "ElevationAttribute";
         public static final String ADDITIONAL_DOMAIN_ATTRIBUTES = "AdditionalDomainAttributes";
+
+        /**
+         * Sets if the target schema should be used to locate granules (default is FALSE)<br/>
+         * {@value TRUE|FALSE}
+         */
+        public final static String USE_EXISTING_SCHEMA = "UseExistingSchema"; 
         public final static String TYPENAME = "TypeName";
         public final static String PATH_TYPE = "PathType";
         public final static String PARENT_LOCATION = "ParentLocation";
@@ -289,7 +295,7 @@ public class Utils {
 		// create the builder
 		//final ImageMosaicWalker catalogBuilder = new ImageMosaicWalker(configuration);
                ImageMosaicEventHandlers eventHandler=new ImageMosaicEventHandlers();
-               final ImageMosaicConfigHandler catalogHandler = new ImageMosaicConfigHandler(configuration, eventHandler, false);
+               final ImageMosaicConfigHandler catalogHandler = new ImageMosaicConfigHandler(configuration, eventHandler);
                // TODO 
                final ImageMosaicWalker walker=new ImageMosaicDirectoryWalker(catalogHandler, eventHandler);
 		
