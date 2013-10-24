@@ -26,8 +26,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.logging.Level;
 
-import javax.imageio.spi.ImageReaderSpi;
-
 import org.apache.commons.io.DirectoryWalker;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOCase;
@@ -37,18 +35,9 @@ import org.apache.commons.io.filefilter.HiddenFileFilter;
 import org.apache.commons.io.filefilter.IOFileFilter;
 import org.apache.commons.io.filefilter.TrueFileFilter;
 import org.apache.commons.io.filefilter.WildcardFileFilter;
-import org.geotools.coverage.grid.io.AbstractGridFormat;
 import org.geotools.data.DefaultTransaction;
-import org.geotools.factory.Hints;
 import org.geotools.gce.image.WorldImageFormat;
 import org.geotools.gce.imagemosaic.Utils.Prop;
-import org.geotools.gce.imagemosaic.catalog.GranuleCatalog;
-import org.geotools.gce.imagemosaic.catalog.index.Indexer;
-import org.geotools.gce.imagemosaic.catalog.index.IndexerUtils;
-import org.geotools.gce.imagemosaic.catalog.index.ParametersType;
-import org.geotools.gce.imagemosaic.catalog.index.ParametersType.Parameter;
-import org.geotools.gce.imagemosaic.catalogbuilder.CatalogBuilderConfiguration;
-import org.geotools.geometry.jts.ReferencedEnvelope;
 
 /**
  * This class is in responsible for creating the index for a mosaic of images that we want to tie together as a single coverage.
@@ -61,7 +50,6 @@ import org.geotools.geometry.jts.ReferencedEnvelope;
 @SuppressWarnings("rawtypes")
 public class ImageMosaicDirectoryWalker extends ImageMosaicWalker {
 
-    
     /**
      * This class is responsible for walking through the files inside a directory (and its children directories) which respect a specified wildcard.
      * 
@@ -115,8 +103,8 @@ public class ImageMosaicDirectoryWalker extends ImageMosaicWalker {
 
         private boolean checkStop() {
             if (getStop()) {
-                eventHandler.fireEvent(Level.INFO, "Stopping requested at file  " + fileIndex + " of "
-                        + numFiles + " files", ((fileIndex * 100.0) / numFiles));
+                eventHandler.fireEvent(Level.INFO, "Stopping requested at file  " + fileIndex
+                        + " of " + numFiles + " files", ((fileIndex * 100.0) / numFiles));
                 return false;
             }
             return true;
@@ -138,8 +126,7 @@ public class ImageMosaicDirectoryWalker extends ImageMosaicWalker {
             super(filter, Integer.MAX_VALUE);// runConfiguration.isRecursive()?Integer.MAX_VALUE:0);
 
             this.walker = walker;
-            transaction = new DefaultTransaction("MosaicCreationTransaction"
-                    + System.nanoTime());
+            transaction = new DefaultTransaction("MosaicCreationTransaction" + System.nanoTime());
             configHandler.indexingPreamble();
 
             try {
@@ -186,7 +173,6 @@ public class ImageMosaicDirectoryWalker extends ImageMosaicWalker {
 
     }
 
-
     private IOFileFilter fileFilter;
 
     /**
@@ -203,8 +189,10 @@ public class ImageMosaicDirectoryWalker extends ImageMosaicWalker {
 
             // TODO we might want to remove this in the future for performance
             numFiles = 0;
-            String harvestDirectory = configHandler.getRunConfiguration().getParameter(Prop.HARVEST_DIRECTORY);
-            String indexDirs = configHandler.getRunConfiguration().getParameter(Prop.INDEXING_DIRECTORIES);
+            String harvestDirectory = configHandler.getRunConfiguration().getParameter(
+                    Prop.HARVEST_DIRECTORY);
+            String indexDirs = configHandler.getRunConfiguration().getParameter(
+                    Prop.INDEXING_DIRECTORIES);
             if (harvestDirectory != null) {
                 indexDirs = harvestDirectory;
             }
@@ -212,12 +200,10 @@ public class ImageMosaicDirectoryWalker extends ImageMosaicWalker {
             for (String indexingDirectory : indexDirectories) {
                 indexingDirectory = Utils.checkDirectory(indexingDirectory, false);
                 final File directoryToScan = new File(indexingDirectory);
-                final Collection files = FileUtils
-                        .listFiles(
-                                directoryToScan,
-                                finalFilter,
-                                Boolean.parseBoolean(configHandler.getRunConfiguration().getParameter(Prop.RECURSIVE)) ? TrueFileFilter.INSTANCE
-                                        : FalseFileFilter.INSTANCE);
+                final Collection files = FileUtils.listFiles(directoryToScan, finalFilter, Boolean
+                        .parseBoolean(configHandler.getRunConfiguration().getParameter(
+                                Prop.RECURSIVE)) ? TrueFileFilter.INSTANCE
+                        : FalseFileFilter.INSTANCE);
                 numFiles += files.size();
             }
             //
@@ -242,8 +228,8 @@ public class ImageMosaicDirectoryWalker extends ImageMosaicWalker {
      * @return
      */
     private IOFileFilter createGranuleFilterRules() {
-        final IOFileFilter specialWildCardFileFilter = new WildcardFileFilter(
-                configHandler.getRunConfiguration().getParameter(Prop.WILDCARD), IOCase.INSENSITIVE);
+        final IOFileFilter specialWildCardFileFilter = new WildcardFileFilter(configHandler
+                .getRunConfiguration().getParameter(Prop.WILDCARD), IOCase.INSENSITIVE);
         IOFileFilter dirFilter = FileFilterUtils.and(FileFilterUtils.directoryFileFilter(),
                 HiddenFileFilter.VISIBLE);
         IOFileFilter filesFilter = Utils.excludeFilters(FileFilterUtils
@@ -255,6 +241,8 @@ public class ImageMosaicDirectoryWalker extends ImageMosaicWalker {
                 .nameFileFilter("error.txt"), FileFilterUtils.nameFileFilter("error.txt.lck"),
                 FileFilterUtils.suffixFileFilter("properties"), FileFilterUtils
                         .suffixFileFilter("svn-base"));
+        filesFilter = FileFilterUtils.or(filesFilter,
+                FileFilterUtils.nameFileFilter("indexer.properties"));
 
         // exclude common extensions
         Set<String> extensions = WorldImageFormat.getWorldExtension("png");
@@ -314,74 +302,6 @@ public class ImageMosaicDirectoryWalker extends ImageMosaicWalker {
             ImageMosaicEventHandlers eventHandler) {
         super(configHandler, eventHandler);
     }
-//
-//    private void updateConfigurationHints(final CatalogBuilderConfiguration configuration,
-//            Hints hints, final String ancillaryFile, final String rootMosaicDir) {
-//        if (ancillaryFile != null) {
-//            final String ancillaryFilePath = rootMosaicDir + File.separatorChar + ancillaryFile;
-//            if (hints != null) {
-//                hints.put(Utils.AUXILIARY_FILES_PATH, ancillaryFilePath);
-//            } else {
-//                hints = new Hints(Utils.AUXILIARY_FILES_PATH, ancillaryFilePath);
-//                configuration.setHints(hints);
-//            }
-//        }
-//
-//        if (hints != null && hints.containsKey(Utils.MOSAIC_READER)) {
-//            Object reader = hints.get(Utils.MOSAIC_READER);
-//            if (reader instanceof ImageMosaicReader) {
-//                configHandler.setParentReader((ImageMosaicReader) reader);
-//                Hints readerHints = configHandler.getParentReader().getHints();
-//                readerHints.add(hints);
-//            }
-//        }
-//    }
-
-    /**
-     * Setup default params to the indexer.
-     * 
-     * @param params
-     * @param indexer
-     */
-    private void copyDefaultParams(ParametersType params, Indexer indexer) {
-        if (params != null) {
-            List<Parameter> defaultParamList = params.getParameter();
-            if (defaultParamList != null && !defaultParamList.isEmpty()) {
-                ParametersType parameters = indexer.getParameters();
-                if (parameters == null) {
-                    parameters = Utils.OBJECT_FACTORY.createParametersType();
-                    indexer.setParameters(parameters);
-                }
-                List<Parameter> parameterList = parameters.getParameter();
-                for (Parameter defaultParameter : defaultParamList) {
-                    final String defaultParameterName = defaultParameter.getName();
-                    if (IndexerUtils.getParameter(defaultParameterName, indexer) == null) {
-                        IndexerUtils.setParam(parameterList, defaultParameterName,
-                                defaultParameter.getValue());
-                    }
-                }
-            }
-        }
-    }
-
-
-//
-//
-//    private void closeIndexObjects() {
-//
-//        // TODO: We may consider avoid disposing the catalog to allow the reader to use the already available catalog
-//        try {
-//            if (catalog != null) {
-//                catalog.dispose();
-//            }
-//        } catch (Throwable e) {
-//            LOGGER.log(Level.SEVERE, e.getLocalizedMessage(), e);
-//        }
-//
-//        catalog = null;
-//        parentReader.granuleCatalog = null;
-//    }
-
 
     public IOFileFilter getFileFilter() {
         return fileFilter;

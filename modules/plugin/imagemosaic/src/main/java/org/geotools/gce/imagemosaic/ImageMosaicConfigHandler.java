@@ -175,6 +175,9 @@ public class ImageMosaicConfigHandler {
                 if (props.containsKey(Prop.AUXILIARY_FILE)) {
                     ancillaryFile = props.getProperty(Prop.AUXILIARY_FILE);
                 }
+                if (props.containsKey(Prop.CAN_BE_EMPTY)) {
+                    IndexerUtils.setParam(params.getParameter(), props, Prop.CAN_BE_EMPTY);
+                }
             }
         }
         if (indexer != null) {
@@ -361,37 +364,51 @@ public class ImageMosaicConfigHandler {
     void indexingPostamble(final boolean success) throws IOException {
         // close shapefile elements
         if (success) {
-
+            Indexer indexer = runConfiguration.getIndexer();
+            boolean supportsEmpty = false;
+            if (indexer != null) {
+                supportsEmpty = IndexerUtils.getParameterAsBoolean(Prop.CAN_BE_EMPTY, indexer);
+            }
             // complete initialization of mosaic configuration
             if (configurations != null && !configurations.isEmpty()) {
-
-                // We did found some MosaicConfigurations
-                Set<String> keys = configurations.keySet();
-                final int keySize = keys.size();
-                final boolean useName = keySize > 1;
-                for (String key : keys) {
-                    MosaicConfigurationBean mosaicConfiguration = configurations.get(key);
-                    RasterManager manager = getParentReader().getRasterManager(key);
-                    manager.initialize();
-                    // create sample image if the needed elements are available
-                    createSampleImage(mosaicConfiguration, useName);
-                    eventHandler.fireEvent(Level.INFO, "Creating final properties file ", 99.9);
-                    createPropertiesFiles(mosaicConfiguration);
+                boolean haveConfigs = configurations != null && !configurations.isEmpty(); 
+                Set<String> keys = null;
+                int keySize = 0;
+                if (haveConfigs || !supportsEmpty) {
+                    
+                    // We did found some MosaicConfigurations
+                    keys = configurations.keySet();
+                    keySize = keys.size();
+                    final boolean useName = keySize > 1;
+                    for (String key : keys) {
+                        MosaicConfigurationBean mosaicConfiguration = configurations.get(key);
+                        RasterManager manager = parentReader.getRasterManager(key);
+                        manager.initialize(supportsEmpty);
+                        // create sample image if the needed elements are available
+                        createSampleImage(mosaicConfiguration, useName);
+                        eventHandler.fireEvent(Level.INFO, "Creating final properties file ", 99.9);
+                        createPropertiesFiles(mosaicConfiguration);
+                    }
                 }
                 final String base = FilenameUtils.getName(parent.getAbsolutePath());
                 // we create a root properties file if we have more than one coverage, or if the
                 // one coverage does not have the default name
-                if (keySize > 1 || (keySize > 0 && !base.equals(keys.iterator().next()))) {
+                if (supportsEmpty || keySize > 1
+                        || (keySize > 0 && !base.equals(keys.iterator().next()))) {
+                    File mosaicFile = null; 
                     if (indexerFile.getAbsolutePath().endsWith("xml")) {
-                        final File mosaicFile = new File(indexerFile.getAbsolutePath().replace(
-                                Utils.INDEXER_XML, (base + ".xml")));
+                        mosaicFile = new File(indexerFile.getAbsolutePath().replace(Utils.INDEXER_XML, (base + ".xml")));
+                        FileUtils.copyFile(indexerFile, mosaicFile);
+                    } else if (indexerFile.getAbsolutePath().endsWith("properties")) {
+                        mosaicFile = new File(indexerFile.getAbsolutePath().replace(
+                                Utils.INDEXER_PROPERTIES, (base + ".properties")));
                         FileUtils.copyFile(indexerFile, mosaicFile);
                     } else {
                         final String source = runConfiguration.getParameter(Prop.ROOT_MOSAIC_DIR)
                                 + File.separatorChar
                                 + configurations.get(keys.iterator().next()).getName()
                                 + ".properties";
-                        final File mosaicFile = new File(indexerFile.getAbsolutePath().replace(
+                        mosaicFile = new File(indexerFile.getAbsolutePath().replace(
                                 Utils.INDEXER_PROPERTIES, (base + ".properties")));
                         FileUtils.copyFile(new File(source), mosaicFile);
                     }
