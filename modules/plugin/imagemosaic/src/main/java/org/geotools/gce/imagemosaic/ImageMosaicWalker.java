@@ -12,12 +12,8 @@ import org.geotools.coverage.grid.io.GridCoverage2DReader;
 import org.geotools.coverage.grid.io.GridFormatFinder;
 import org.geotools.coverage.grid.io.UnknownFormat;
 import org.geotools.data.DefaultTransaction;
-import org.geotools.data.Query;
-import org.geotools.data.simple.SimpleFeatureCollection;
-import org.geotools.data.simple.SimpleFeatureIterator;
 import org.geotools.factory.Hints;
 import org.geotools.util.Utilities;
-import org.opengis.feature.simple.SimpleFeature;
 
 /**
  * This class is responsible for walking through the files inside a directory (and its children directories) which respect a specified wildcard.
@@ -35,12 +31,9 @@ import org.opengis.feature.simple.SimpleFeature;
 abstract class ImageMosaicWalker implements Runnable {
 
     /** Default Logger * */
-    final static Logger LOGGER = org.geotools.util.logging.Logging
-            .getLogger(ImageMosaicWalker.class);
+    final static Logger LOGGER = org.geotools.util.logging.Logging.getLogger(ImageMosaicWalker.class);
 
-    protected DefaultTransaction transaction;
-
-    protected volatile boolean canceled = false;
+    private DefaultTransaction transaction;
 
     /**
      * Proper way to stop a thread is not by calling Thread.stop() but by using a shared variable that can be checked in order to notify a terminating
@@ -50,18 +43,17 @@ abstract class ImageMosaicWalker implements Runnable {
 
     protected final ImageMosaicConfigHandler configHandler;
 
-    protected Hints excludeMosaicHints = new Hints(Utils.EXCLUDE_MOSAIC, true);
+    protected final Hints excludeMosaicHints = new Hints(Utils.EXCLUDE_MOSAIC, true);
 
-    protected AbstractGridFormat cachedFormat;
+    private AbstractGridFormat cachedFormat;
 
     /**
-     * This field will tell the plugin if it must do a conversion of color from the original index color model to an RGB color model. This happens f
-     * the original images uses different color maps between each other making for us impossible to reuse it for the mosaic.
-     */
-    protected int fileIndex = 0;
+     * index of the file being processed
+     */    
+    private int fileIndex = 0;
 
     /** Number of files to process. */
-    protected int numFiles = 1;
+    private int numFiles = 1;
 
     protected final ImageMosaicEventHandlers eventHandler;
 
@@ -187,6 +179,76 @@ abstract class ImageMosaicWalker implements Runnable {
             }
         }
 
+    }
+    
+    /**
+     * Create a transaction for being used in this walker
+     */
+    public void startTransaction(){
+        if(transaction!=null){
+            throw new IllegalStateException("Transaction already open!");
+        }
+        this.transaction = new DefaultTransaction("MosaicCreationTransaction"+ System.nanoTime());
+    }
+    
+    public void rollbackTransaction() throws IOException{
+        transaction.rollback();
+    }
+    
+    public void commitTransaction() throws IOException{
+        transaction.commit();
+    }
+    
+    public void closeTransaction(){
+        transaction.close();
+    }
+
+    protected boolean checkStop() {
+        if (getStop()) {
+            eventHandler.fireEvent(Level.INFO, "Stopping requested at file  " + fileIndex
+                    + " of " + numFiles + " files", ((fileIndex * 100.0) / numFiles));
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * @return the fileIndex
+     */
+    public int getFileIndex() {
+        return fileIndex;
+    }
+
+    /**
+     * @return the numFiles
+     */
+    public int getNumFiles() {
+        return numFiles;
+    }
+
+    /**
+     * @param fileIndex the fileIndex to set
+     */
+    public void setFileIndex(int fileIndex) {
+        this.fileIndex = fileIndex;
+    }
+
+    /**
+     * @param numFiles the numFiles to set
+     */
+    public void setNumFiles(int numFiles) {
+        this.numFiles = numFiles;
+    }
+
+    /**
+     * Warn this walker that we skip the provided path 
+     * @param path the path to the file to skip
+     * 
+     */
+    public void skipFile(String path) {
+        LOGGER.log(Level.INFO,"Unable to use path: "+path+" - skipping it.");
+        fileIndex++;
+        
     }
 
 }

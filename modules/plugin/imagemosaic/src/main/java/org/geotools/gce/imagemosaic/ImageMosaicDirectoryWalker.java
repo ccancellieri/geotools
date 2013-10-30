@@ -35,7 +35,6 @@ import org.apache.commons.io.filefilter.HiddenFileFilter;
 import org.apache.commons.io.filefilter.IOFileFilter;
 import org.apache.commons.io.filefilter.TrueFileFilter;
 import org.apache.commons.io.filefilter.WildcardFileFilter;
-import org.geotools.data.DefaultTransaction;
 import org.geotools.gce.image.WorldImageFormat;
 import org.geotools.gce.imagemosaic.Utils.Prop;
 
@@ -47,7 +46,7 @@ import org.geotools.gce.imagemosaic.Utils.Prop;
  * 
  * @source $URL$
  */
-@SuppressWarnings("rawtypes")
+@SuppressWarnings({ "rawtypes", "unchecked" })
 public class ImageMosaicDirectoryWalker extends ImageMosaicWalker {
 
     /**
@@ -73,8 +72,9 @@ public class ImageMosaicDirectoryWalker extends ImageMosaicWalker {
                 CancelException cancel) throws IOException {
             super.handleCancelled(startDirectory, results, cancel);
             // clean up objects and rollback transaction
-            if (LOGGER.isLoggable(Level.INFO))
+            if (LOGGER.isLoggable(Level.INFO)){
                 LOGGER.info("Stop requested when walking directory " + startDirectory);
+            }
             super.handleEnd(results);
         }
 
@@ -86,7 +86,6 @@ public class ImageMosaicDirectoryWalker extends ImageMosaicWalker {
             // Anyone has asked us to stop?
             //
             if (!checkStop()) {
-                canceled = true;
                 return true;
             }
             return false;
@@ -101,32 +100,12 @@ public class ImageMosaicDirectoryWalker extends ImageMosaicWalker {
             super.handleFile(fileBeingProcessed, depth, results);
         }
 
-        private boolean checkStop() {
-            if (getStop()) {
-                eventHandler.fireEvent(Level.INFO, "Stopping requested at file  " + fileIndex
-                        + " of " + numFiles + " files", ((fileIndex * 100.0) / numFiles));
-                return false;
-            }
-            return true;
-        }
-
-        private boolean checkFile(final File fileBeingProcessed) {
-            if (!fileBeingProcessed.exists() || !fileBeingProcessed.canRead()
-                    || !fileBeingProcessed.isFile()) {
-                // send a message
-                eventHandler.fireEvent(Level.INFO, "Skipped file " + fileBeingProcessed
-                        + " snce it seems invalid", ((fileIndex * 99.0) / numFiles));
-                return false;
-            }
-            return true;
-        }
-
         public MosaicDirectoryWalker(final List<String> indexingDirectories,
                 final FileFilter filter, ImageMosaicWalker walker) throws IOException {
             super(filter, Integer.MAX_VALUE);// runConfiguration.isRecursive()?Integer.MAX_VALUE:0);
 
             this.walker = walker;
-            transaction = new DefaultTransaction("MosaicCreationTransaction" + System.nanoTime());
+            startTransaction();
             configHandler.indexingPreamble();
 
             try {
@@ -135,20 +114,22 @@ public class ImageMosaicDirectoryWalker extends ImageMosaicWalker {
                     walk(new File(indexingDirectory), null);
 
                     // did we cancel?
-                    if (canceled)
+                    if (getStop()){
                         break;
+                    }
                 }
                 // did we cancel?
-                if (canceled)
-                    transaction.rollback();
-                else
-                    transaction.commit();
+                if (getStop()){
+                    rollbackTransaction();
+                }else{
+                    commitTransaction();
+                }
             } catch (Exception e) {
                 LOGGER.log(Level.WARNING, "Failure occurred while collecting the granules", e);
-                transaction.rollback();
+                rollbackTransaction();
             } finally {
                 try {
-                    configHandler.indexingPostamble(!canceled);
+                    configHandler.indexingPostamble(!getStop());
                 } catch (Exception e) {
                     final String message = "Unable to close indexing" + e.getLocalizedMessage();
                     if (LOGGER.isLoggable(Level.WARNING)) {
@@ -159,7 +140,7 @@ public class ImageMosaicDirectoryWalker extends ImageMosaicWalker {
                 }
 
                 try {
-                    transaction.close();
+                    closeTransaction();
                 } catch (Exception e) {
                     final String message = "Unable to close indexing" + e.getLocalizedMessage();
                     if (LOGGER.isLoggable(Level.WARNING)) {
@@ -185,10 +166,10 @@ public class ImageMosaicDirectoryWalker extends ImageMosaicWalker {
             //
             // creating the file filters for scanning for files to check and index
             //
-            final IOFileFilter finalFilter = createGranuleFilterRules();
+            final IOFileFilter finalFilter = createDefaultGranuleExclusionFilter();
 
             // TODO we might want to remove this in the future for performance
-            numFiles = 0;
+            int numFiles = 0;
             String harvestDirectory = configHandler.getRunConfiguration().getParameter(
                     Prop.HARVEST_DIRECTORY);
             String indexDirs = configHandler.getRunConfiguration().getParameter(
@@ -210,10 +191,12 @@ public class ImageMosaicDirectoryWalker extends ImageMosaicWalker {
             // walk over the files that have filtered out
             //
             if (numFiles > 0) {
-                final List<String> indexingDirectories = new ArrayList<String>(
-                        Arrays.asList(indexDirectories));
+                setNumFiles(numFiles);
+                final List<String> indexingDirectories = new ArrayList<String>(Arrays.asList(indexDirectories));
                 new MosaicDirectoryWalker(indexingDirectories, finalFilter, this);
 
+            }else{
+                LOGGER.log(Level.INFO, "No files to process!"); 
             }
 
         } catch (IOException e) {
@@ -225,7 +208,7 @@ public class ImageMosaicDirectoryWalker extends ImageMosaicWalker {
     /**
      * @return
      */
-    private IOFileFilter createGranuleFilterRules() {
+    private IOFileFilter createDefaultGranuleExclusionFilter() {
         final IOFileFilter specialWildCardFileFilter = new WildcardFileFilter(configHandler
                 .getRunConfiguration().getParameter(Prop.WILDCARD), IOCase.INSENSITIVE);
         IOFileFilter dirFilter = FileFilterUtils.and(FileFilterUtils.directoryFileFilter(),
@@ -291,27 +274,28 @@ public class ImageMosaicDirectoryWalker extends ImageMosaicWalker {
     }
 
     /**
-     * Default constructor
+     * Default constructor.
      * 
-     * @throws
+     * Sets a filter that can reduce the file the mosaic walker will take into consideration (in a more flexible way than the wildcards)
+     * 
+     * @param filter 
+     * 
      * @throws IllegalArgumentException
      */
     public ImageMosaicDirectoryWalker(ImageMosaicConfigHandler configHandler,
-            ImageMosaicEventHandlers eventHandler) {
+            ImageMosaicEventHandlers eventHandler, IOFileFilter filter) {
         super(configHandler, eventHandler);
-    }
 
-    public IOFileFilter getFileFilter() {
-        return fileFilter;
+        this.fileFilter = filter;
     }
 
     /**
-     * Sets a filter that can reduce the file the mosaic walker will take into consideration (in a more flexible way than the wildcards)
-     * 
-     * @param fileFilter
+     * @param catalogHandler
+     * @param eventHandler
      */
-    public void setFileFilter(IOFileFilter fileFilter) {
-        this.fileFilter = fileFilter;
+    public ImageMosaicDirectoryWalker(ImageMosaicConfigHandler catalogHandler,
+            ImageMosaicEventHandlers eventHandler) {
+        this(catalogHandler, eventHandler, null);
     }
 
 }

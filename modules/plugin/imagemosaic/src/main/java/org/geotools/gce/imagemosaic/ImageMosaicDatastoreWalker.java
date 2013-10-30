@@ -5,28 +5,17 @@ import java.io.IOException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import org.apache.commons.io.DirectoryWalker;
-import org.apache.commons.io.FilenameUtils;
-import org.geotools.coverage.grid.io.AbstractGridFormat;
-import org.geotools.coverage.grid.io.GridCoverage2DReader;
-import org.geotools.coverage.grid.io.GridFormatFinder;
-import org.geotools.coverage.grid.io.UnknownFormat;
-import org.geotools.data.DefaultTransaction;
 import org.geotools.data.Query;
 import org.geotools.data.simple.SimpleFeatureCollection;
 import org.geotools.data.simple.SimpleFeatureIterator;
-import org.geotools.factory.Hints;
-import org.geotools.util.Utilities;
+import org.geotools.gce.imagemosaic.catalog.GranuleCatalog;
 import org.opengis.feature.simple.SimpleFeature;
 
 /**
- * This class is responsible for walking through the target schema and check all
- * the located granules.
+ * This class is responsible for walking through the target schema and check all the located granules.
  * 
  * <p>
- * Its role is basically to simplify the construction of the mosaic by
- * implementing a visitor pattern for the files that we have to use for the
- * index.
+ * Its role is basically to simplify the construction of the mosaic by implementing a visitor pattern for the files that we have to use for the index.
  * 
  * 
  * @author Carlo Cancellieri - GeoSolutions SAS
@@ -36,136 +25,165 @@ import org.opengis.feature.simple.SimpleFeature;
  */
 class ImageMosaicDatastoreWalker extends ImageMosaicWalker {
 
-	/** Default Logger * */
-	final static Logger LOGGER = org.geotools.util.logging.Logging
-			.getLogger(ImageMosaicDatastoreWalker.class);
+    /** Default Logger * */
+    final static Logger LOGGER = org.geotools.util.logging.Logging
+            .getLogger(ImageMosaicDatastoreWalker.class);
 
-	protected DefaultTransaction transaction;
+    /**
+     * @param updateFeatures if true update catalog with loaded granules
+     * @param imageMosaicConfigHandler TODO
+     */
+    public ImageMosaicDatastoreWalker(ImageMosaicConfigHandler configHandler,
+            ImageMosaicEventHandlers eventHandler) {
+        super(configHandler, eventHandler);
+    }
 
-	private volatile boolean canceled = false;
+    /**
+     * run the walker on the store
+     */
+    public void run() {
 
-	/**
-	 * @param updateFeatures
-	 *            if true update catalog with loaded granules
-	 * @param imageMosaicConfigHandler
-	 *            TODO
-	 */
-	public ImageMosaicDatastoreWalker(ImageMosaicConfigHandler configHandler,
-			ImageMosaicEventHandlers eventHandler) {
-		super(configHandler, eventHandler);
-	}
+        SimpleFeatureIterator it = null;
+        try {
 
-	/**
-	 * run the directory walker
-	 */
-	public void run() {
+            configHandler.indexingPreamble();
+            startTransaction();
+            
+            // start looking into catalog
+            final GranuleCatalog catalog = configHandler.getCatalog();
+            for (String typeName : catalog.getTypeNames()) {
 
-		try {
+                // how many rows for this feature type?
+                final Query query = new Query(typeName);
+                int numFiles = catalog.getGranulesCount(query);
+                if(numFiles<=0){
+                    // empty table?
+                    LOGGER.log(Level.FINE,"No rows in the typeName: "+typeName);
+                    continue;
+                }
+                setNumFiles(numFiles);
+                
+                // cool, now let's walk over the features
+                final SimpleFeatureCollection coll = catalog.getGranules(query);
+                // create an iterator
+                it = coll.features();
+                // TODO setup index name
+    
+                // final MosaicConfigurationBean config=
+                // configurations.get(typeName);
+                while (it.hasNext()) {
+                    // get next element
+                    final SimpleFeature feature = it.next();
+                    
+                    // String
+                    // locationAttrName=config.getCatalogConfigurationBean().getLocationAttribute();
+                    String locationAttrName = configHandler.getRunConfiguration().getLocationAttribute();
+                    Object locationAttrObj = feature.getAttribute(locationAttrName);
+                    File file = null;
+                    if (locationAttrObj instanceof String) {
+                        final String path = (String) locationAttrObj;
+                        if (configHandler.getRunConfiguration().isAbsolute()) {
+                            // absolute files
+                            file = new File(path);
+                            // check this is _really_ absolute
+                            if(!checkFile(file)){
+                                file=null;
+                            }
+                        } 
+                        if(file==null){
+                            // relative files
+                            file = new File(
+                                    configHandler.getRunConfiguration().getRootMosaicDirectory(), 
+                                    path);
+                            // check this is _really_ relative
+                            if(!(file.exists()&&file.canRead()&&file.isFile())){
+                                // let's try for absolute, despite what the config says
+                                // absolute files
+                                file = new File(path);
+                                // check this is _really_ absolute
+                                if(!(checkFile(file))){
+                                    file=null;
+                                }
+                            }
+                        }
+                        
+                        // final check
+                        if(file==null){
+                            // SKIP and log
+                            // empty table?
+                            super.skipFile(path);
+                            continue;                                    
+                        }
+    
+                    } else if (locationAttrObj instanceof File) {
+                        file = (File) locationAttrObj;
+                    } else {
+                        eventHandler.fireException(
+                                new IOException("Location attribute type not recognized for column name: "+ locationAttrName));
+                        stop(); 
+                        break;
+                    }
+                    
+                    // process this file
+                    handleFile(file);
+                }
+                
+                // close read iterator
+                if (it != null){
+                    it.close();
+                }                
+            }  // next table 
+            
+            // close transaction
+            
+            // did we cancel?
+            if (getStop()){
+                rollbackTransaction();
+            } else{
+                commitTransaction();
+            }            
 
-			this.transaction = new DefaultTransaction(
-					"MosaicCreationTransaction" + System.nanoTime());
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "Failure occurred while collecting the granules", e);
+            try {
+                rollbackTransaction();
+            } catch (IOException e1) {
+                throw new IllegalStateException(e1);
+            }
+        } finally {
+            // close read iterator
+            if (it != null){
+                try {
+                    it.close();
+                }catch (Exception e) {
+                    LOGGER.log(Level.FINE, e.getLocalizedMessage(), e);
+                }
+            }
+            // close transaction
+            try {
+                closeTransaction();
+            } catch (Exception e) {
+                final String message = "Unable to close indexing" + e.getLocalizedMessage();
+                if (LOGGER.isLoggable(Level.WARNING)) {
+                    LOGGER.log(Level.WARNING, message, e);
+                }
+                // notify listeners
+                eventHandler.fireException(e);
+            }
+            
+            // close indexing
+            try {
+                configHandler.indexingPostamble(!getStop());
+            } catch (Exception e) {
+                final String message = "Unable to close indexing" + e.getLocalizedMessage();
+                if (LOGGER.isLoggable(Level.WARNING)) {
+                    LOGGER.log(Level.WARNING, message, e);
+                }
+                // notify listeners
+                eventHandler.fireException(e);
+            }
 
-			configHandler.indexingPreamble();
 
-			try {
-				// start looking into catalog
-				for (String typeName : configHandler.getCatalog()
-						.getTypeNames()) {
-
-					final Query query = new Query(typeName);
-					final SimpleFeatureCollection coll = configHandler
-							.getCatalog().getGranules(query);
-					// TODO we might want to remove this in the future for
-					// performance
-					numFiles = coll.size();
-
-					SimpleFeatureIterator it = null;
-					try {
-						it = coll.features();
-						// TODO setup index name
-
-						// final MosaicConfigurationBean config=
-						// configurations.get(typeName);
-						while (it.hasNext()) {
-							SimpleFeature feature = it.next();
-							// String
-							// locationAttrName=config.getCatalogConfigurationBean().getLocationAttribute();
-							String locationAttrName = configHandler
-									.getRunConfiguration()
-									.getLocationAttribute();
-							Object locationAttrObj = feature
-									.getAttribute(locationAttrName);
-							File indexing = null;
-							if (locationAttrObj instanceof String) {
-								if (configHandler.getRunConfiguration()
-										.isAbsolute()) {
-									indexing = new File(
-											(String) locationAttrObj);
-								} else {
-									indexing = new File(configHandler
-											.getRunConfiguration()
-											.getRootMosaicDirectory(),
-											(String) locationAttrObj);
-								}
-
-							} else if (locationAttrObj instanceof File) {
-								indexing = (File) locationAttrObj;
-							} else {
-								eventHandler.fireException(new IOException(
-										"Location attribute type not recognized for column name: "
-												+ locationAttrName));
-								canceled = true;
-								break;
-							}
-							handleFile(indexing);
-						}
-					} finally {
-						if (it != null)
-							it.close();
-					}
-
-					// did we cancel?
-					if (canceled)
-						transaction.rollback();
-					else
-						transaction.commit();
-				}
-
-			} catch (Exception e) {
-				LOGGER.log(Level.WARNING,
-						"Failure occurred while collecting the granules", e);
-				transaction.rollback();
-			} finally {
-				try {
-					configHandler.indexingPostamble(!canceled);
-				} catch (Exception e) {
-					final String message = "Unable to close indexing"
-							+ e.getLocalizedMessage();
-					if (LOGGER.isLoggable(Level.WARNING)) {
-						LOGGER.log(Level.WARNING, message, e);
-					}
-					// notify listeners
-					eventHandler.fireException(e);
-				}
-
-				try {
-					transaction.close();
-				} catch (Exception e) {
-					final String message = "Unable to close indexing"
-							+ e.getLocalizedMessage();
-					if (LOGGER.isLoggable(Level.WARNING)) {
-						LOGGER.log(Level.WARNING, message, e);
-					}
-					// notify listeners
-					eventHandler.fireException(e);
-				}
-			}
-
-			// }
-
-		} catch (IOException e) {
-			LOGGER.log(Level.SEVERE, e.getLocalizedMessage(), e);
-		}
-
-	}
+        }
+    }
 }
