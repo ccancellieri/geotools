@@ -6,7 +6,7 @@ import java.util.List;
 import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.feature.type.Name;
 
-public class TypeNamesOp extends BaseOp<List<Name>, String, String> {
+public class TypeNamesOp extends BaseOp<List<Name>, String> {
 
     public TypeNamesOp(CacheManager cacheManager, final String uniqueName) {
         super(cacheManager, uniqueName);
@@ -17,34 +17,20 @@ public class TypeNamesOp extends BaseOp<List<Name>, String, String> {
         return cacheManager.getCache().getNames();
     }
 
-    @Override
-    public boolean isCached(String o) {
-        return super.isCached(getUid()+getClass());
-    };
-
-    /**
-     * @param isCached - used to set or invalidate cached values
-     * @param key - unused
-     */
-    @Override
-    public void setCached(boolean isCached, String key) {
-        super.setCached(true, getUid()+getClass());
-    };
-
     /**
      * @param arguments are unused
      */
     @Override
     public List<Name> updateCache(String arg) throws IOException {
         final List<Name> names = cacheManager.getSource().getNames();
-        final SchemaOp op = cacheManager.getCachedOpOfType(Operation.schema,SchemaOp.class);
+        final SchemaOp op = cacheManager.getCachedOpOfType(Operation.schema, SchemaOp.class);
         // create schemas
         for (Name name : names) {
             SimpleFeatureType schema = null;
             if (op != null) {
-                if (!op.isCached(cacheManager.getUID())) {
+                if (!op.isCached(name) || op.isDirty(name)) {
                     schema = op.updateCache(name);
-                    op.setCached(schema!=null?true:false, cacheManager.getUID());
+                    op.setCached(name, schema != null ? true : false);
                 } else {
                     schema = op.getCache(name);
                 }
@@ -58,5 +44,15 @@ public class TypeNamesOp extends BaseOp<List<Name>, String, String> {
         }
 
         return names;
+    }
+
+    @Override
+    public boolean isDirty(String key) throws IOException {
+        return false;
+    }
+
+    @Override
+    public void setDirty(String query) throws IOException {
+        throw new UnsupportedOperationException();
     }
 }

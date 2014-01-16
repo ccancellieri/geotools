@@ -9,7 +9,7 @@ import org.geotools.data.simple.SimpleFeatureCollection;
 import org.geotools.data.simple.SimpleFeatureSource;
 import org.opengis.feature.type.Name;
 
-public class STRFeatureCollectionOp extends BaseOp<SimpleFeatureCollection, Query, Name> {
+public class STRFeatureCollectionOp extends BaseOp<SimpleFeatureCollection, Query> {
 
     private final STRFeatureSourceOp strOp;
 
@@ -33,6 +33,18 @@ public class STRFeatureCollectionOp extends BaseOp<SimpleFeatureCollection, Quer
         strOp.updateCache(query);
         // cacheManager.getSource().getFeatureSource(name)
         return null; //TODO
+    }
+
+    @Override
+    public boolean isDirty(Query key) throws IOException {
+        // TODO Auto-generated method stub
+        return false;
+    }
+
+    @Override
+    public void setDirty(Query key) throws IOException {
+        // TODO Auto-generated method stub
+        
     }
 
 }

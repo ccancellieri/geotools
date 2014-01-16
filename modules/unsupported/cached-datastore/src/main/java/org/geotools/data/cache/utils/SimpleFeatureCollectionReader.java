@@ -82,9 +82,9 @@ public class SimpleFeatureCollectionReader implements
         if (schemaOp != null) {
             final Name name = schema.getName();
             try {
-                if (!schemaOp.isCached(cacheManager.getUID())) {
+                if (!schemaOp.isCached(name) || schemaOp.isDirty(name)) {
                     cachedSchema = schemaOp.updateCache(name);
-                    schemaOp.setCached(schema != null ? true : false, cacheManager.getUID());
+                    schemaOp.setCached(name, schema != null ? true : false);
                 } else {
                     cachedSchema = schemaOp.getCache(name);
                 }
@@ -111,11 +111,11 @@ public class SimpleFeatureCollectionReader implements
             SimpleFeature feature = null;
             nextOp.setSf(sf);
             nextOp.setDf(df);
-            if (!nextOp.isCached(null)) {
-                feature = nextOp.updateCache(null);
-                nextOp.setCached(feature != null ? true : false, feature.getID());
+            if (!nextOp.isCached(sf.getIdentifier()) || nextOp.isDirty(sf.getIdentifier())) {
+                feature = nextOp.updateCache(feature.getIdentifier());
+                nextOp.setCached(sf.getIdentifier(), feature != null ? true : false);
             } else {
-                feature = nextOp.getCache(null);
+                feature = nextOp.getCache(sf.getIdentifier());
             }
             if (feature != null) {
                 return feature;

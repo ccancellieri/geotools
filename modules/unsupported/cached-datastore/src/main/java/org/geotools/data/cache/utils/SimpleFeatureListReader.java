@@ -6,10 +6,11 @@ import java.util.List;
 import java.util.NoSuchElementException;
 
 import org.geotools.data.FeatureReader;
+import org.geotools.data.simple.SimpleFeatureReader;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
 
-public class SimpleFeatureListReader implements FeatureReader<SimpleFeatureType, SimpleFeature> {
+public class SimpleFeatureListReader implements SimpleFeatureReader {
 
     private final Iterator<SimpleFeature> it;
 

@@ -32,20 +32,29 @@ public class PipelinedContentFeatureReader implements
 
     private final ContentEntry entry;
 
+    private final Transaction transaction;
+
     private FeatureWriter<SimpleFeatureType, SimpleFeature> fw = null;
 
     private FeatureReader<SimpleFeatureType, SimpleFeature> fr = null;
 
-    public PipelinedContentFeatureReader(ContentEntry entry, final Query origQuery, final Query integratedQuery,
-            final CacheManager cacheManager) throws IOException {
+    public PipelinedContentFeatureReader(ContentEntry entry, final Query origQuery,
+            final Query integratedQuery, final CacheManager cacheManager) throws IOException {
+        this(entry, origQuery, integratedQuery, cacheManager, Transaction.AUTO_COMMIT);
+    }
+
+    public PipelinedContentFeatureReader(ContentEntry entry, final Query origQuery,
+            final Query integratedQuery, final CacheManager cacheManager,
+            final Transaction transaction) throws IOException {
         this.entry = entry;
         this.cacheManager = cacheManager;
         this.nextOp = cacheManager.getCachedOpOfType(Operation.next, NextOp.class);
         this.schemaOp = cacheManager.getCachedOpOfType(Operation.schema, SchemaOp.class);
+        this.transaction = transaction;
 
-        fr = cacheManager.getSource().getFeatureReader(integratedQuery, Transaction.AUTO_COMMIT);
+        fr = cacheManager.getSource().getFeatureReader(integratedQuery, transaction);
         fw = cacheManager.getCache().getFeatureWriterAppend(integratedQuery.getTypeName(),
-                Transaction.AUTO_COMMIT);
+                transaction);
     }
 
     @Override
@@ -56,9 +65,9 @@ public class PipelinedContentFeatureReader implements
             SimpleFeatureType cachedSchema = null;
             if (schemaOp != null) {
                 final Name name = schema.getName();
-                if (!schemaOp.isCached(cacheManager.getUID())) {
+                if (!schemaOp.isCached(name)) {
                     cachedSchema = schemaOp.updateCache(name);
-                    schemaOp.setCached(cachedSchema != null ? true : false, cacheManager.getUID());
+                    schemaOp.setCached(name, cachedSchema != null ? true : false);
                 } else {
                     cachedSchema = schemaOp.getCache(name);
                 }
@@ -86,9 +95,9 @@ public class PipelinedContentFeatureReader implements
             SimpleFeature feature = null;
             nextOp.setSf(sf);
             nextOp.setDf(df);
-            if (!nextOp.isCached(sf.getIdentifier())) {
+            if (!nextOp.isCached(sf.getIdentifier()) || nextOp.isDirty(sf.getIdentifier())) {
                 feature = nextOp.updateCache(sf.getIdentifier());
-                nextOp.setCached(feature != null ? true : false, cacheManager.getUID());
+                nextOp.setCached(sf.getIdentifier(), feature != null ? true : false);
             } else {
                 feature = nextOp.getCache(sf.getIdentifier());
             }
@@ -101,9 +110,9 @@ public class PipelinedContentFeatureReader implements
             df.getProperty(p.getName()).setValue(p.getValue());
         }
         fw.write();
-        
+
         // TODO filter over origQuery
-        
+
         return df;
     }
 

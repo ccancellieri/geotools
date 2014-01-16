@@ -8,32 +8,35 @@ import java.io.Serializable;
  * @author carlo
  * 
  * @param <T> The type returned by the cachedOp(eration)
- * @param <C> the type used by the {@link CachedOp#updateCache(Object...)} operation
  * @param <K> the type used to check if the operation has cached a specific call
  */
-public interface CachedOp<T, C, K> {
-    
+public interface CachedOp<T, K> {
+
     /**
      * @return a string representing the status of this cachedOp object (note: this should be loadable by the {@link #load(String)} method)
+     * @throws IOException
      */
-    public Serializable save();
-    
+    public Serializable save() throws IOException;
+
     /**
      * load the status of this cachedOp using the input Serializable (if needed) to setup accordingly the status of this object
+     * 
      * @param obj the status to load
      */
-    public void load(Serializable obj);
-    
+    public void load(Serializable obj) throws IOException;
+
     /**
      * clear the status of this cachedOp
-     * @throws IOException 
+     * 
+     * @throws IOException
      */
     public void clear() throws IOException;
-    
+
     /**
      * this is a dispose method (should be called when this object is no more used)
+     * @throws IOException 
      */
-    public void dispose();
+    public void dispose() throws IOException;
 
     /**
      * @param key
@@ -41,7 +44,7 @@ public interface CachedOp<T, C, K> {
      * @return the cached object
      * @throws IOException
      */
-    public T getCache(C o) throws IOException;
+    public T getCache(K o) throws IOException;
 
     /**
      * perform a cache update
@@ -50,7 +53,11 @@ public interface CachedOp<T, C, K> {
      * @return true if success
      * @throws IOException
      */
-    public T updateCache(C arg) throws IOException;
+    public T updateCache(K key) throws IOException;
+
+    public boolean isDirty(K key) throws IOException;
+
+    void setDirty(K key) throws IOException;
 
     /**
      * @return true if cache was already called and cached value is not dirty
@@ -65,6 +72,6 @@ public interface CachedOp<T, C, K> {
      * @param isCached
      * @throws IOException
      */
-    public void setCached(Object isCached, K key) throws IOException;
+    public void setCached(K key, boolean isCached) throws IOException;
 
 }

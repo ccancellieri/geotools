@@ -53,14 +53,14 @@ public class DelegateContentFeatureSource extends ContentFeatureSource {
 
     @Override
     protected ReferencedEnvelope getBoundsInternal(Query query) throws IOException {
-        final CachedOp<ReferencedEnvelope, Query, String> op = cacheManager.getCachedOpOfType(
+        final CachedOp<ReferencedEnvelope, Query> op = cacheManager.getCachedOpOfType(
                 Operation.bounds, CachedOp.class);
         ReferencedEnvelope env = null;
         if (op != null) {
             try {
-                if (!op.isCached(cacheManager.getUID())) {
+                if (!op.isCached(query) || op.isDirty(query)) {
                     env = op.updateCache(query);
-                    op.setCached(env != null ? true : false, cacheManager.getUID());
+                    op.setCached(query, env != null ? true : false);
                 } else {
                     env = op.getCache(query);
                 }
@@ -80,14 +80,14 @@ public class DelegateContentFeatureSource extends ContentFeatureSource {
 
     @Override
     protected int getCountInternal(Query query) throws IOException {
-        final CachedOp<Integer, Query, Query> op = cacheManager.getCachedOpOfType(Operation.count,
+        final CachedOp<Integer, Query> op = cacheManager.getCachedOpOfType(Operation.count,
                 CachedOp.class);
         Integer count = null;
         if (op != null) {
             try {
-                if (!op.isCached(query)) {
+                if (!op.isCached(query) || op.isDirty(query)) {
                     count = op.updateCache(query);
-                    op.setCached(count != null ? true : false, query);
+                    op.setCached(query, count != null ? true : false);
                 } else {
                     count = op.getCache(query);
                 }
@@ -112,14 +112,19 @@ public class DelegateContentFeatureSource extends ContentFeatureSource {
         if (op != null) {
             op.setEntry(getEntry());
             try {
-                if (!op.isCached(cacheManager.getUID())) {
+                if (!op.isCached(query) || op.isDirty(query)) {
+
                     final Query updateQuery = new Query(query);
+                    
                     final SimpleFeatureSource source = op.updateCache(updateQuery);
-                    op.setCached(source != null ? true : false, cacheManager.getUID());
-//                    query.setFilter(FeatureSourceOp.ff.and(query.getFilter(),
-//                            FeatureSourceOp.ff.not(updateQuery.getFilter())));
-                    return new SimpleFeatureCollectionReader(cacheManager, source.getFeatures(),
-                            op.getCache(query).getFeatures());
+                    if (source != null) {
+                        op.setCached(query, true);
+                        return new SimpleFeatureCollectionReader(cacheManager, source.getFeatures());
+                    } else {
+                        op.setCached(query, false);
+                        throw new IOException("Unable to create a simple feature source from the passed query: "
+                                            + updateQuery);
+                    }
                 }
                 return new SimpleFeatureCollectionReader(cacheManager, op.getCache(query)
                         .getFeatures());
@@ -127,7 +132,11 @@ public class DelegateContentFeatureSource extends ContentFeatureSource {
                 if (LOGGER.isLoggable(Level.SEVERE)) {
                     LOGGER.log(Level.SEVERE, e.getLocalizedMessage(), e);
                 }
+                throw e;
             }
+        }
+        if (LOGGER.isLoggable(Level.WARNING)) {
+            LOGGER.log(Level.WARNING, "No cached operation is found: "+Operation.featureSource);
         }
         // if (source != null) {
         // return new SimpleFeatureCollectionReader(cacheManager, source.getFeatures()); // TODO pass the query????
@@ -143,9 +152,9 @@ public class DelegateContentFeatureSource extends ContentFeatureSource {
         if (op != null) {
             final Name name = getEntry().getName();
             try {
-                if (!op.isCached(cacheManager.getUID())) {
+                if (!op.isCached(name) || op.isDirty(name)) {
                     schema = op.updateCache(name);
-                    op.setCached(schema != null ? true : false, cacheManager.getUID());
+                    op.setCached(name, schema != null ? true : false);
                 } else {
                     schema = op.getCache(name);
                 }

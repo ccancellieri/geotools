@@ -34,21 +34,21 @@ public class CachedDataStore extends ContentDataStore {
 
     @Override
     protected List<Name> createTypeNames() throws IOException {
-        TypeNamesOp cachedOp = cacheManager.getCachedOpOfType(Operation.typeNames,TypeNamesOp.class);
-        List<Name> names=null;
-        if (cachedOp != null) {
-            try {
-                if (!cachedOp.isCached(null)) {
-                    names=cachedOp.updateCache(null);
-                    cachedOp.setCached(names!=null?true:false, null);
-                } else {
-                    names=cachedOp.getCache(null);
-                }
-            } catch (IOException e) {
-                LOGGER.log(Level.SEVERE, e.getMessage(), e);
+        TypeNamesOp typeNamesOp = cacheManager.getCachedOpOfType(Operation.typeNames,
+                TypeNamesOp.class);
+        List<Name> names = null;
+        if (typeNamesOp != null) {
+
+            if (!typeNamesOp.isCached(typeNamesOp.getUid())
+                    || typeNamesOp.isDirty(typeNamesOp.getUid())) {
+                names = typeNamesOp.updateCache(typeNamesOp.getUid());
+                typeNamesOp.setCached(typeNamesOp.getUid(), names != null ? true : false);
+            } else {
+                names = typeNamesOp.getCache(typeNamesOp.getUid());
             }
+
         }
-        if (names!=null){
+        if (names != null) {
             return names;
         } else {
             return store.getNames();
@@ -83,7 +83,11 @@ public class CachedDataStore extends ContentDataStore {
     @Override
     public void dispose() {
         super.dispose();
-        cacheManager.dispose();
+        try {
+            cacheManager.dispose();
+        } catch (IOException e) {
+            LOGGER.log(Level.WARNING, e.getMessage(), e);
+        }
     }
 
     public CacheManager getCacheManager() {

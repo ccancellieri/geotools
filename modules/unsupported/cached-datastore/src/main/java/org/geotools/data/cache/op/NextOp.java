@@ -11,13 +11,12 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import org.geotools.feature.simple.SimpleSchema;
-import org.opengis.feature.Attribute;
 import org.opengis.feature.Property;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.type.Name;
 import org.opengis.filter.identity.FeatureId;
 
-public class NextOp extends BaseOp<SimpleFeature, FeatureId, String> {
+public class NextOp extends BaseOp<SimpleFeature, FeatureId> {
 
     private final transient Logger LOGGER = org.geotools.util.logging.Logging.getLogger(getClass()
             .getPackage().getName());
@@ -34,11 +33,6 @@ public class NextOp extends BaseOp<SimpleFeature, FeatureId, String> {
 
     @Override
     public SimpleFeature updateCache(FeatureId o) throws IOException {
-        return getCache(o);
-    }
-
-    @Override
-    public SimpleFeature getCache(FeatureId o) throws IOException {
         verify(o);
 
         if (sf == null || df == null) {
@@ -52,6 +46,11 @@ public class NextOp extends BaseOp<SimpleFeature, FeatureId, String> {
 
         return df;
 
+    }
+
+    @Override
+    public SimpleFeature getCache(FeatureId o) throws IOException {
+        return updateCache(o);
     }
 
     private static Collection<Property> enrich(SimpleFeature sourceF, SimpleFeature destinationF,
@@ -91,7 +90,7 @@ public class NextOp extends BaseOp<SimpleFeature, FeatureId, String> {
                 } else if (Date.class.isAssignableFrom(c)) {
                     final Object o = p.getValue();
                     if (o != null) {
-                        Date date =(Date) o;
+                        Date date = (Date) o;
                         final Timestamp oldValue = new Timestamp(date.getTime());
                         p.setValue(oldValue);
                     } else {
@@ -116,12 +115,12 @@ public class NextOp extends BaseOp<SimpleFeature, FeatureId, String> {
     }
 
     @Override
-    public void setCached(boolean isCached, String key) {
+    public void setCached(FeatureId key, boolean isCached) {
         // do nothing
     };
 
     @Override
-    public boolean isCached(String o) {
+    public boolean isCached(FeatureId o) throws IOException {
         return true;
     }
 
@@ -139,6 +138,16 @@ public class NextOp extends BaseOp<SimpleFeature, FeatureId, String> {
 
     public void setDf(SimpleFeature df) {
         this.df = df;
+    }
+
+    @Override
+    public boolean isDirty(FeatureId key) throws IOException {
+        return false;
+    }
+
+    @Override
+    public void setDirty(FeatureId query) throws IOException {
+        throw new UnsupportedOperationException();
     }
 
 }

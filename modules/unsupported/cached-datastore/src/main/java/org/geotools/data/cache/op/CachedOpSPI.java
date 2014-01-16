@@ -3,7 +3,7 @@ package org.geotools.data.cache.op;
 import java.io.IOException;
 import java.io.Serializable;
 
-public abstract class CachedOpSPI<T extends CachedOp<?, ?, ?>> implements Serializable {
+public abstract class CachedOpSPI<T extends CachedOp<?, ?>> implements Serializable {
 
     /** serialVersionUID */
     private static final long serialVersionUID = -7808528781956318808L;

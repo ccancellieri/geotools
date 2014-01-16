@@ -11,7 +11,7 @@ import org.geotools.feature.type.AttributeDescriptorImpl;
 import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.feature.type.Name;
 
-public class SchemaOp extends BaseSchemaOp<Name, String> {
+public class SchemaOp extends BaseSchemaOp<Name> {
 
     // final Map<Name,SimpleFeatureType> schemas=new HashMap<Name, SimpleFeatureType>();
 
@@ -45,7 +45,7 @@ public class SchemaOp extends BaseSchemaOp<Name, String> {
 
         final SimpleFeatureType newSchema = b.buildFeatureType();
 
-        if (isCached(cacheManager.getUID())) {
+        if (isCached(name)) {
             // cache.createSchema(SimpleFeatureTypeBuilder.copy(store.getSchema(name)));
             cacheManager.getCache().updateSchema(name, newSchema);
         } else {
@@ -60,6 +60,7 @@ public class SchemaOp extends BaseSchemaOp<Name, String> {
         verify(o);
         return cacheManager.getCache().getSchema(o);
     }
+
     //
     // @Override
     // public Collection<Property> enrich(Feature sourceF, Feature destinationF) throws IOException {
@@ -99,5 +100,15 @@ public class SchemaOp extends BaseSchemaOp<Name, String> {
     // }
     // return props;
     // }
+
+    @Override
+    public boolean isDirty(Name key) throws IOException {
+        return false;
+    }
+
+    @Override
+    public void setDirty(Name query) throws IOException {
+        throw new UnsupportedOperationException();
+    }
 
 }

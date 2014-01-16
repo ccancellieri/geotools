@@ -1,8 +1,6 @@
 package org.geotools.data.cache.op;
 
 import java.io.IOException;
-import java.sql.Savepoint;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -13,7 +11,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import org.geotools.data.DataStore;
 import org.geotools.data.cache.utils.EHCacheUtils;
 import org.springframework.cache.Cache.ValueWrapper;
 
@@ -36,7 +33,7 @@ public class CacheStatus {
     private final transient ReadWriteLock cachedOpMapLock = new ReentrantReadWriteLock();
 
     // operations
-    private final transient Map<Operation, CachedOp<?, ?, ?>> cachedOpMap = new HashMap<Operation, CachedOp<?, ?, ?>>();
+    private final transient Map<Operation, CachedOp<?, ?>> cachedOpMap = new HashMap<Operation, CachedOp<?, ?>>();
 
     // name for the operations map storage
     private final String uid;
@@ -62,10 +59,10 @@ public class CacheStatus {
         }
     }
 
-    public CachedOp<?, ?, ?> getCachedOp(CachedOpSPI<?> op) {
+    public CachedOp<?, ?> getCachedOp(CachedOpSPI<?> op) {
         try {
             this.cachedOpMapLock.readLock().lock();
-            return (CachedOp<?, ?, ?>) cachedOpMap.get(op);
+            return (CachedOp<?, ?>) cachedOpMap.get(op);
         } finally {
             this.cachedOpMapLock.readLock().unlock();
         }
@@ -76,16 +73,16 @@ public class CacheStatus {
      * @param op
      * @return
      */
-    public CachedOp<?, ?, ?> getCachedOp(Operation op) {
+    public CachedOp<?, ?> getCachedOp(Operation op) {
         try {
             this.cachedOpMapLock.readLock().lock();
-            return (CachedOp<?, ?, ?>) cachedOpMap.get(op);
+            return (CachedOp<?, ?>) cachedOpMap.get(op);
         } finally {
             this.cachedOpMapLock.readLock().unlock();
         }
     }
 
-    public void putCachedOp(Operation op, CachedOp<?, ?, ?> cachedOp) {
+    public void putCachedOp(Operation op, CachedOp<?, ?> cachedOp) {
         try {
             this.cachedOpMapLock.writeLock().lock();
             cachedOpMap.put(op, cachedOp);
@@ -94,7 +91,7 @@ public class CacheStatus {
         }
     }
 
-    // public void putCachedOp(CachedOpSPI<CachedOp<?, ?, ?>> spi, CachedOp<?, ?, ?> cachedOp) {
+    // public void putCachedOp(CachedOpSPI<CachedOp<?, ?>> spi, CachedOp<?, ?> cachedOp) {
     // try {
     // this.cachedOpMapLock.writeLock().lock();
     // cachedOpMap.put(spi, cachedOp);
@@ -103,10 +100,10 @@ public class CacheStatus {
     // }
     // }
 
-    public void putAllCachedOp(Map<Operation, CachedOp<?, ?, ?>> all) {
+    public void putAllCachedOp(Map<Operation, CachedOp<?, ?>> all) {
         try {
             this.cachedOpMapLock.writeLock().lock();
-            for (Entry<Operation, CachedOp<?, ?, ?>> e : all.entrySet()) {
+            for (Entry<Operation, CachedOp<?, ?>> e : all.entrySet()) {
                 cachedOpMap.put(e.getKey(), e.getValue());
             }
         } finally {
@@ -114,10 +111,10 @@ public class CacheStatus {
         }
     }
 
-    // public void putAllCachedOp(Map<CachedOpSPI<CachedOp<?, ?, ?>>, CachedOp<?, ?, ?>> all) {
+    // public void putAllCachedOp(Map<CachedOpSPI<CachedOp<?, ?>>, CachedOp<?, ?>> all) {
     // try {
     // this.cachedOpMapLock.writeLock().lock();
-    // for (Entry<CachedOpSPI<CachedOp<?, ?, ?>>, CachedOp<?, ?, ?>> e : all.entrySet()) {
+    // for (Entry<CachedOpSPI<CachedOp<?, ?>>, CachedOp<?, ?>> e : all.entrySet()) {
     // cachedOpMap.put(e.getKey(), e.getValue());
     // }
     // } finally {
@@ -127,12 +124,14 @@ public class CacheStatus {
 
     /**
      * Recursively save the current status
+     * 
+     * @throws IOException
      */
-    public void save() {
+    public void save() throws IOException {
         try {
             this.cachedOpMapLock.writeLock().lock();
             // recursive save
-            for (CachedOp<?, ?, ?> op : cachedOpMap.values()) {
+            for (CachedOp<?, ?> op : cachedOpMap.values()) {
                 op.save();
             }
             // store SPI set into the cache
@@ -149,7 +148,7 @@ public class CacheStatus {
         try {
             this.cachedOpMapLock.writeLock().lock();
             // recursively clear
-            for (CachedOp<?, ?, ?> op : cachedOpMap.values()) {
+            for (CachedOp<?, ?> op : cachedOpMap.values()) {
                 op.clear();
             }
             // clear
@@ -174,12 +173,12 @@ public class CacheStatus {
             this.cachedOpMapLock.writeLock().lock();
             final ValueWrapper cachedSet = ehcache.get(getUID());
             if (cachedSet != null) {
-                final Set<CachedOpSPI<CachedOp<?, ?, ?>>> spiSet = (Set<CachedOpSPI<CachedOp<?, ?, ?>>>) cachedSet
+                final Set<CachedOpSPI<CachedOp<?, ?>>> spiSet = (Set<CachedOpSPI<CachedOp<?, ?>>>) cachedSet
                         .get();
                 // recursive load
-                for (Iterator<CachedOpSPI<CachedOp<?, ?, ?>>> spiIt = spiSet.iterator(); spiIt
+                for (Iterator<CachedOpSPI<CachedOp<?, ?>>> spiIt = spiSet.iterator(); spiIt
                         .hasNext();) {
-                    CachedOpSPI<CachedOp<?, ?, ?>> spi = spiIt.next();
+                    CachedOpSPI<CachedOp<?, ?>> spi = spiIt.next();
                     try {
                         loadOp(cacheManager, spi);
                     } catch (IOException e) {
@@ -206,12 +205,12 @@ public class CacheStatus {
      * @param spi
      * @throws IOException if fails to create the CachedOp
      */
-    public void loadOp(final CacheManager cacheManager, CachedOpSPI<CachedOp<?, ?, ?>> spi)
+    public void loadOp(final CacheManager cacheManager, CachedOpSPI<CachedOp<?, ?>> spi)
             throws IOException {
         if (cacheManager == null || spi == null)
             throw new IllegalArgumentException(
                     "Unable to load an operation using a null cache manager or a null spi");
-        final CachedOp<?, ?, ?> op = spi.create(cacheManager, createCachedOpUID(spi.getOp()));
+        final CachedOp<?, ?> op = spi.create(cacheManager, createCachedOpUID(spi.getOp()));
         // load op
         op.load(null);
 
@@ -221,12 +220,14 @@ public class CacheStatus {
     /**
      * dispose the operation<br/>
      * <b>NOTE:</b> {@link CacheStatus#save()} or {@link CacheStatus#clear()} should be called separately (before this)
+     * 
+     * @throws IOException
      */
-    public void dispose() {
+    public void dispose() throws IOException {
         try {
             this.cachedOpMapLock.writeLock().lock();
             if (this.cachedOpMap != null) {
-                for (CachedOp<?, ?, ?> op : cachedOpMap.values()) {
+                for (CachedOp<?, ?> op : cachedOpMap.values()) {
                     op.dispose();
                 }
             }

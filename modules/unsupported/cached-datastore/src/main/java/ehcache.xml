@@ -1,25 +1,31 @@
 <ehcache>
 	<diskStore path="java.io.tmpdir" />
-	
+
 	<cache name="cache" maxElementsInMemory="100" eternal="false"
 		timeToIdleSeconds="120" timeToLiveSeconds="120" overflowToDisk="true"
 		maxElementsOnDisk="10000000" diskPersistent="false"
 		diskExpiryThreadIntervalSeconds="120" memoryStoreEvictionPolicy="LRU" />
 
 	<!-- Store the status of the CacheManager (1 per cached data store instance) -->
-	<cache name="CacheManagerStatus" maxElementsInMemory="100" eternal="false"
-		timeToIdleSeconds="120" timeToLiveSeconds="120" overflowToDisk="true"
-		maxElementsOnDisk="10000000" diskPersistent="false"
+	<cache name="CacheManagerStatus" maxElementsInMemory="100"
+		eternal="false" timeToIdleSeconds="120" timeToLiveSeconds="120"
+		overflowToDisk="true" maxElementsOnDisk="10000000" diskPersistent="false"
 		diskExpiryThreadIntervalSeconds="120" memoryStoreEvictionPolicy="LRU" />
-		
+
 	<!-- Store the status of the CacheOp (N per CacheManager instance) -->
 	<cache name="CachedOpStatus" maxElementsInMemory="100" eternal="false"
 		timeToIdleSeconds="120" timeToLiveSeconds="120" overflowToDisk="true"
 		maxElementsOnDisk="10000000" diskPersistent="false"
 		diskExpiryThreadIntervalSeconds="120" memoryStoreEvictionPolicy="LRU" />
 
-	<!-- SRT FeatureSourceOp implementation -->
+	<!-- FeatureSourceOp implementation -->
 	<cache name="featureSource" maxElementsInMemory="100" eternal="true"
+		timeToIdleSeconds="120" timeToLiveSeconds="120" overflowToDisk="true"
+		maxElementsOnDisk="10000000" diskPersistent="false"
+		diskExpiryThreadIntervalSeconds="120" memoryStoreEvictionPolicy="LRU" />
+
+	<!-- FeatureCountOp implementation -->
+	<cache name="featureCount" maxElementsInMemory="100" eternal="true"
 		timeToIdleSeconds="120" timeToLiveSeconds="120" overflowToDisk="true"
 		maxElementsOnDisk="10000000" diskPersistent="false"
 		diskExpiryThreadIntervalSeconds="120" memoryStoreEvictionPolicy="LRU" />

@@ -146,7 +146,7 @@ public class CachedDataStoreFactory extends AbstractDataStoreFactory implements 
         
         final CacheManager cacheManager = new CacheManager(source, cache, createDataStoreUID(params));
         
-        final Map<String, CachedOpSPI<CachedOp<?, ?, ?>>> spiParams = lookup(CACHEDOPSPI_PARAMS, params, Map.class);
+        final Map<String, CachedOpSPI<CachedOp<?, ?>>> spiParams = lookup(CACHEDOPSPI_PARAMS, params, Map.class);
         
         cacheManager.load(spiParams.values());
         

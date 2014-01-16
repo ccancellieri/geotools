@@ -46,7 +46,7 @@ public class CacheManager {
      * @param op
      * @return
      */
-    public CachedOp<?, ?, ?> getCachedOp(Operation op) {
+    public CachedOp<?, ?> getCachedOp(Operation op) {
         return status.getCachedOp(op);
     }
     
@@ -61,7 +61,7 @@ public class CacheManager {
     }
     
 
-    public void save() {
+    public void save() throws IOException {
         status.save();
     }
 
@@ -79,8 +79,8 @@ public class CacheManager {
      * 
      * @param uniqueName
      */
-    public void load(final Collection<CachedOpSPI<CachedOp<?, ?, ?>>> spiList) {
-        for (CachedOpSPI<CachedOp<?, ?, ?>> spi : spiList) {
+    public void load(final Collection<CachedOpSPI<CachedOp<?, ?>>> spiList) {
+        for (CachedOpSPI<CachedOp<?, ?>> spi : spiList) {
             try {
                 status.loadOp(this, spi);
             } catch (IOException e) {
@@ -97,7 +97,7 @@ public class CacheManager {
         return cache;
     }
 
-    public void dispose() {
+    public void dispose() throws IOException {
         if (status != null) {
             status.dispose();
         }
