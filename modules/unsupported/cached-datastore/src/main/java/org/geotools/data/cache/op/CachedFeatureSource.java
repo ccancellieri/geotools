@@ -6,6 +6,8 @@ import org.geotools.data.FeatureReader;
 import org.geotools.data.Query;
 import org.geotools.data.Transaction;
 import org.geotools.data.store.ContentEntry;
+import org.opengis.feature.simple.SimpleFeature;
+import org.opengis.feature.simple.SimpleFeatureType;
 
 @SuppressWarnings("unchecked")
 public class CachedFeatureSource extends BaseCachedFeatureSource {
@@ -16,13 +18,13 @@ public class CachedFeatureSource extends BaseCachedFeatureSource {
     }
 
     @Override
-    protected int count(Query query) throws IOException {
-        return this.cacheManager.getCache().getFeatureSource(query.getTypeName()).getCount(query);
+    protected int count(Query origQuery, Query integratedQuery) throws IOException {
+        return this.cacheManager.getCache().getFeatureSource(origQuery.getTypeName()).getCount(origQuery);
     }
 
     @Override
-    protected FeatureReader<?, ?> query(Query query) throws IOException {
-        return this.cacheManager.getCache().getFeatureReader(query, Transaction.AUTO_COMMIT);
+    protected FeatureReader<SimpleFeatureType, SimpleFeature> query(Query origQuery, Query integratedQuery) throws IOException {
+        return this.cacheManager.getCache().getFeatureReader(origQuery, Transaction.AUTO_COMMIT);
     }
 
 }

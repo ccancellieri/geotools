@@ -36,15 +36,15 @@ public class PipelinedContentFeatureReader implements
 
     private FeatureReader<SimpleFeatureType, SimpleFeature> fr = null;
 
-    public PipelinedContentFeatureReader(ContentEntry entry, Query query,
+    public PipelinedContentFeatureReader(ContentEntry entry, final Query origQuery, final Query integratedQuery,
             final CacheManager cacheManager) throws IOException {
         this.entry = entry;
         this.cacheManager = cacheManager;
         this.nextOp = cacheManager.getCachedOpOfType(Operation.next, NextOp.class);
         this.schemaOp = cacheManager.getCachedOpOfType(Operation.schema, SchemaOp.class);
 
-        fr = cacheManager.getSource().getFeatureReader(query, Transaction.AUTO_COMMIT);
-        fw = cacheManager.getCache().getFeatureWriterAppend(query.getTypeName(),
+        fr = cacheManager.getSource().getFeatureReader(integratedQuery, Transaction.AUTO_COMMIT);
+        fw = cacheManager.getCache().getFeatureWriterAppend(integratedQuery.getTypeName(),
                 Transaction.AUTO_COMMIT);
     }
 
@@ -56,9 +56,9 @@ public class PipelinedContentFeatureReader implements
             SimpleFeatureType cachedSchema = null;
             if (schemaOp != null) {
                 final Name name = schema.getName();
-                if (!schemaOp.isCached(name)) {
+                if (!schemaOp.isCached(cacheManager.getUID())) {
                     cachedSchema = schemaOp.updateCache(name);
-                    schemaOp.setCached(cachedSchema != null ? true : false, name);
+                    schemaOp.setCached(cachedSchema != null ? true : false, cacheManager.getUID());
                 } else {
                     cachedSchema = schemaOp.getCache(name);
                 }
@@ -86,11 +86,11 @@ public class PipelinedContentFeatureReader implements
             SimpleFeature feature = null;
             nextOp.setSf(sf);
             nextOp.setDf(df);
-            if (!nextOp.isCached(null)) {
-                feature = nextOp.updateCache(null);
-                nextOp.setCached(feature != null ? true : false, feature.getID());
+            if (!nextOp.isCached(sf.getIdentifier())) {
+                feature = nextOp.updateCache(sf.getIdentifier());
+                nextOp.setCached(feature != null ? true : false, cacheManager.getUID());
             } else {
-                feature = nextOp.getCache(null);
+                feature = nextOp.getCache(sf.getIdentifier());
             }
             if (feature != null) {
                 fw.write();
@@ -101,6 +101,9 @@ public class PipelinedContentFeatureReader implements
             df.getProperty(p.getName()).setValue(p.getValue());
         }
         fw.write();
+        
+        // TODO filter over origQuery
+        
         return df;
     }
 

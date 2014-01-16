@@ -911,7 +911,7 @@ public class Query {
                 | ((getVersion() == null) ? 0 : getVersion().hashCode())
                 | ((getCoordinateSystem() == null) ? 0 : getCoordinateSystem().hashCode())
                 | ((getCoordinateSystemReproject() == null) ? 0 : getCoordinateSystemReproject().hashCode())
-                | getStartIndex();
+                | ((getStartIndex() == null) ? 0 : getStartIndex());
     }
     
     /**

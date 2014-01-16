@@ -1,5 +1,6 @@
 package org.geotools.data.cache.op;
 
+import java.io.IOException;
 import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
@@ -32,7 +33,7 @@ public abstract class BaseOp<T, C, K> implements CachedOp<T, C, K> {
     protected final String uid;
 
     // status of this operation
-    protected Map<Object, Boolean> isCachedMap;
+    protected Map<K, Object> isCachedMap;
 
     // lock
     protected final transient ReadWriteLock isCachedLock = new ReentrantReadWriteLock();
@@ -63,7 +64,7 @@ public abstract class BaseOp<T, C, K> implements CachedOp<T, C, K> {
     }
 
     @Override
-    public void clear() {
+    public void clear() throws IOException {
         try {
             isCachedLock.writeLock().lock();
             isCachedMap.clear();
@@ -85,10 +86,10 @@ public abstract class BaseOp<T, C, K> implements CachedOp<T, C, K> {
         try {
             isCachedLock.writeLock().lock();
             if (isCachedObj != null) {
-                isCachedMap = (Map<Object, Boolean>) isCachedObj.get();
+                isCachedMap = (Map<K, Object>) isCachedObj.get();
             } else {
                 LOGGER.warning("No cached status is found");
-                isCachedMap = new HashMap<Object, Boolean>();
+                isCachedMap = new HashMap<K, Object>();
             }
         } finally {
             isCachedLock.writeLock().unlock();
@@ -100,17 +101,17 @@ public abstract class BaseOp<T, C, K> implements CachedOp<T, C, K> {
         try {
             isCachedLock.readLock().lock();
             Object b = isCachedMap.get(o.hashCode());
-            return b != null ? (Boolean) b : false;
+            return b != null ? true : false;
         } finally {
             isCachedLock.readLock().unlock();
         }
     }
 
     @Override
-    public void setCached(boolean isCached, K key) {
+    public void setCached(Object isCached, K key) {
         try {
             isCachedLock.writeLock().lock();
-            this.isCachedMap.put(key.hashCode(), isCached);
+            this.isCachedMap.put(key, isCached);
         } finally {
             isCachedLock.writeLock().unlock();
         }

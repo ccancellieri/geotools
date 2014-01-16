@@ -19,15 +19,16 @@ public interface CachedOp<T, C, K> {
     public Serializable save();
     
     /**
-     * load the status of this cachedOp using the input string (if needed) to setup accordingly the status of this object
+     * load the status of this cachedOp using the input Serializable (if needed) to setup accordingly the status of this object
      * @param obj the status to load
      */
     public void load(Serializable obj);
     
     /**
      * clear the status of this cachedOp
+     * @throws IOException 
      */
-    public void clear();
+    public void clear() throws IOException;
     
     /**
      * this is a dispose method (should be called when this object is no more used)
@@ -64,6 +65,6 @@ public interface CachedOp<T, C, K> {
      * @param isCached
      * @throws IOException
      */
-    public void setCached(boolean isCached, K key) throws IOException;
+    public void setCached(Object isCached, K key) throws IOException;
 
 }

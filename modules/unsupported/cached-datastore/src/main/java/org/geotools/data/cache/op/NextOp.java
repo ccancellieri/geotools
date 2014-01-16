@@ -4,17 +4,20 @@ import java.io.IOException;
 import java.sql.Timestamp;
 import java.util.Calendar;
 import java.util.Collection;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import org.geotools.feature.simple.SimpleSchema;
+import org.opengis.feature.Attribute;
 import org.opengis.feature.Property;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.type.Name;
+import org.opengis.filter.identity.FeatureId;
 
-public class NextOp extends BaseOp<SimpleFeature, Object, Object> {
+public class NextOp extends BaseOp<SimpleFeature, FeatureId, String> {
 
     private final transient Logger LOGGER = org.geotools.util.logging.Logging.getLogger(getClass()
             .getPackage().getName());
@@ -30,12 +33,12 @@ public class NextOp extends BaseOp<SimpleFeature, Object, Object> {
     }
 
     @Override
-    public SimpleFeature updateCache(Object o) throws IOException {
+    public SimpleFeature updateCache(FeatureId o) throws IOException {
         return getCache(o);
     }
 
     @Override
-    public SimpleFeature getCache(Object o) throws IOException {
+    public SimpleFeature getCache(FeatureId o) throws IOException {
         verify(o);
 
         if (sf == null || df == null) {
@@ -68,7 +71,7 @@ public class NextOp extends BaseOp<SimpleFeature, Object, Object> {
                         final Long oldValue = (Long) SimpleSchema.LONG.getBinding().cast(o);
                         p.setValue(oldValue + 1);
                     } else {
-                        p.setValue(0);
+                        p.setValue(0L);
                     }
                 } else {
                     throw new IOException("Unable to enrich this feature: wrong binding class ("
@@ -81,6 +84,15 @@ public class NextOp extends BaseOp<SimpleFeature, Object, Object> {
                     if (o != null) {
                         final Timestamp oldValue = (Timestamp) SimpleSchema.DATETIME.getBinding()
                                 .cast(o);
+                        p.setValue(oldValue);
+                    } else {
+                        p.setValue(new Timestamp(Calendar.getInstance().getTimeInMillis()));
+                    }
+                } else if (Date.class.isAssignableFrom(c)) {
+                    final Object o = p.getValue();
+                    if (o != null) {
+                        Date date =(Date) o;
+                        final Timestamp oldValue = new Timestamp(date.getTime());
                         p.setValue(oldValue);
                     } else {
                         p.setValue(new Timestamp(Calendar.getInstance().getTimeInMillis()));
@@ -104,12 +116,12 @@ public class NextOp extends BaseOp<SimpleFeature, Object, Object> {
     }
 
     @Override
-    public void setCached(boolean isCached, Object key) {
+    public void setCached(boolean isCached, String key) {
         // do nothing
     };
 
     @Override
-    public boolean isCached(Object o) {
+    public boolean isCached(String o) {
         return true;
     }
 

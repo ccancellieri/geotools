@@ -41,6 +41,8 @@ public class SimpleFeatureCollectionReader implements
 
     private int currentCollection = 0;
 
+    private final CacheManager cacheManager;
+
     public SimpleFeatureCollectionReader(CacheManager cacheManager, SimpleFeatureCollection... coll)
             throws IOException {
         if (coll == null || coll.length == 0) {
@@ -59,6 +61,7 @@ public class SimpleFeatureCollectionReader implements
 
         this.schemaOp = cacheManager.getCachedOpOfType(Operation.schema, SchemaOp.class);
         this.nextOp = cacheManager.getCachedOpOfType(Operation.next, NextOp.class);
+        this.cacheManager=cacheManager;
     }
 
     private SimpleFeatureCollection nextCollection() throws IOException {
@@ -79,9 +82,9 @@ public class SimpleFeatureCollectionReader implements
         if (schemaOp != null) {
             final Name name = schema.getName();
             try {
-                if (!schemaOp.isCached(name)) {
+                if (!schemaOp.isCached(cacheManager.getUID())) {
                     cachedSchema = schemaOp.updateCache(name);
-                    schemaOp.setCached(schema != null ? true : false, name);
+                    schemaOp.setCached(schema != null ? true : false, cacheManager.getUID());
                 } else {
                     cachedSchema = schemaOp.getCache(name);
                 }

@@ -2,7 +2,7 @@ package org.geotools.data.cache.op;
 
 import org.geotools.data.store.ContentEntry;
 
-public abstract class BaseFeatureSourceOp<T, K, C> extends BaseOp<T, K, C> {
+public abstract class BaseFeatureSourceOp<T, C, K> extends BaseOp<T, C, K> {
 
     private ContentEntry entry;
 

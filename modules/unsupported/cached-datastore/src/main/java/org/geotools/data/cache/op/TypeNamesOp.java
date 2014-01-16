@@ -42,9 +42,9 @@ public class TypeNamesOp extends BaseOp<List<Name>, String, String> {
         for (Name name : names) {
             SimpleFeatureType schema = null;
             if (op != null) {
-                if (!op.isCached(name)) {
+                if (!op.isCached(cacheManager.getUID())) {
                     schema = op.updateCache(name);
-                    op.setCached(schema!=null?true:false, name);
+                    op.setCached(schema!=null?true:false, cacheManager.getUID());
                 } else {
                     schema = op.getCache(name);
                 }

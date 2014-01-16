@@ -11,10 +11,12 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.logging.Level;
 
+import org.geotools.data.DataSourceException;
 import org.geotools.data.FeatureReader;
 import org.geotools.data.FeatureWriter;
 import org.geotools.data.Query;
 import org.geotools.data.Transaction;
+import org.geotools.data.cache.impl.STRCachedFeatureSource;
 import org.geotools.data.cache.utils.DelegateContentFeatureSource;
 import org.geotools.data.cache.utils.EHCacheUtils;
 import org.geotools.data.cache.utils.PipelinedContentFeatureReader;
@@ -56,30 +58,25 @@ import com.vividsolutions.jts.geom.Envelope;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.Polygon;
 
-public class FeatureSourceOp extends BaseFeatureSourceOp<SimpleFeatureSource, Query, Query> {
+public class FeatureSourceOp extends BaseFeatureSourceOp<BaseCachedFeatureSource, Query, String> {
 
-    // cached bounds
-    protected transient Envelope originalBounds;
+    // // used to track cached areas
+    // protected transient Geometry cachedAreas;
 
-    // the cached schema
-    protected transient SimpleFeatureType schema;
+    // // lock on cached areas
+    // protected final transient ReadWriteLock lockAreas = new ReentrantReadWriteLock();
 
-    // the source schema (needed for query the source)
-    protected transient SimpleFeatureType sourceSchema;
-
-    // used to track cached areas
-    protected transient Geometry cachedAreas;
-
-    // lock on cached areas
-    protected final transient ReadWriteLock lockAreas = new ReentrantReadWriteLock();
-
-    public final static FilterFactory2 ff = CommonFactoryFinder.getFilterFactory2(null);
+    // public final static FilterFactory2 ff = CommonFactoryFinder.getFilterFactory2(null);
 
     protected final Cache ehCacheManager;
 
-    private final static Set<Class<? extends Filter>> supportedFilterTypes = new HashSet<Class<? extends Filter>>(
-            Arrays.asList(BBOX.class, Contains.class, Crosses.class, DWithin.class, Equals.class,
-                    Intersects.class, Overlaps.class, Touches.class, Within.class));
+    // lock on cache
+    protected ReadWriteLock lockCache = new ReentrantReadWriteLock();
+
+
+    // private final static Set<Class<? extends Filter>> supportedFilterTypes = new HashSet<Class<? extends Filter>>(
+    // Arrays.asList(BBOX.class, Contains.class, Crosses.class, DWithin.class, Equals.class,
+    // Intersects.class, Overlaps.class, Touches.class, Within.class));
 
     public FeatureSourceOp(final CacheManager cacheManager, final String uid) throws IOException {
         super(cacheManager, uid);
@@ -88,26 +85,55 @@ public class FeatureSourceOp extends BaseFeatureSourceOp<SimpleFeatureSource, Qu
         this.ehCacheManager = EHCacheUtils.getCacheUtils().getCache("featureSource");
 
         // cached Areas
-        initCachedAreas(false);
+        // initCachedAreas(false);
 
         // bounds
-        initOriginalBounds(null);
+        // initOriginalBounds(null);
 
         // schema
         // initSchema();
     }
 
     @Override
-    public SimpleFeatureSource getCache(final Query query) throws IOException {
-        verify(query);
-        return cacheManager.getCache().getFeatureSource(query.getTypeName());
-        // return new DelegateContentFeatureSource(cacheManager, getEntry(), query);
+    public BaseCachedFeatureSource getCache(Query query) throws IOException {
+        BaseCachedFeatureSource s = ehCacheGet(ehCacheManager, this.getUid());
+        if (s == null) {
+            s = updateCache(query);
+            setCached(s != null ? true : false, this.getUid());
+            return getCache(query);
+        } else {
+            return s;
+        }
     }
 
     @Override
-    public void clear() {
-        super.clear();
-        initCachedAreas(true);
+    public BaseCachedFeatureSource updateCache(Query query) throws IOException {
+        final BaseCachedFeatureSource featureSource;
+        try {
+            lockCache.writeLock().lock();
+            featureSource = new BaseCachedFeatureSource(cacheManager, getEntry(), query) {
+                @Override
+                protected FeatureReader<SimpleFeatureType, SimpleFeature> getReaderInternal(
+                        Query query) throws IOException {
+
+                    return new PipelinedContentFeatureReader(getEntry(), query, cacheManager);
+
+                }
+            };
+            ehCachePut(ehCacheManager, featureSource, this.getUid());
+        } finally {
+            lockCache.writeLock().unlock();
+        }
+        return featureSource;
+    }
+
+    @Override
+    public void clear() throws IOException {
+        final BaseCachedFeatureSource featureSource=getCache(null);
+        if (featureSource!=null){
+            featureSource.clearCachedAreas();
+            featureSource.initSchema();
+        }
         FeatureWriter<SimpleFeatureType, SimpleFeature> fw = null;
         try {
             fw = cacheManager.getCache().getFeatureWriter(getEntry().getTypeName(),
@@ -126,99 +152,90 @@ public class FeatureSourceOp extends BaseFeatureSourceOp<SimpleFeatureSource, Qu
                 }
             }
         }
-
+        super.clear();
     }
 
-    @Override
-    public boolean isCached(Query query) {
-        verify(query);
-        return isCached(getEnvelope(query.getFilter(), originalBounds));
-    }
+//    @Override
+//    public boolean isCached(String query) {
+//        verify(query);
+//        return !featureSource.isDirty()
+//                && featureSource.isSubArea(query);
+//        // isCached(getEnvelope(query.getFilter(), originalBounds));
+//    }
 
-    @Override
-    public void setCached(boolean isCached, Query query) {
-        verify(query);
-        final Envelope env = getEnvelope(query.getFilter(), originalBounds);
-        final Geometry geom = JTS.toGeometry(env);
-        try {
-            lockAreas.writeLock().lock();
-            if (isCached == true) {
-                cachedAreas = cachedAreas.union(geom);
-            } else {
-                cachedAreas = cachedAreas.difference(geom);
-            }
-        } finally {
-            lockAreas.writeLock().unlock();
-        }
-
-    }
+//    @Override
+//    public void setCached(boolean isCached, String UUID) {
+//        verify(UUID);
+//        super.set
+//
+//    }
 
     /**
      * Updates the cache and modify the passed query filter to the difference from the cached area
      */
-    @Override
-    public SimpleFeatureSource updateCache(Query query) throws IOException {
-        verify(query);
-        try {
-            if (schema == null || sourceSchema == null) {
-                // schema
-                if (!initSchema())
-                    throw new IllegalStateException("Unable to initialize the schema");
-            }
-            final Filter[] sF = splitFilters(query, originalBounds, schema);
-            final Envelope env = getEnvelope(sF[1], originalBounds);
-
-            Geometry geom = JTS.toGeometry(env);
-            try {
-                lockAreas.readLock().lock();
-                geom = geom.difference(cachedAreas.getEnvelope());
-            } finally {
-                lockAreas.readLock().unlock();
-            }
-
-            final CoordinateReferenceSystem targetCRS = query.getCoordinateSystemReproject();
-            final GeometryDescriptor geoDesc = schema.getGeometryDescriptor();
-            final CoordinateReferenceSystem worldCRS = geoDesc.getCoordinateReferenceSystem();
-            MathTransform transform = null;
-            if (worldCRS != null) {
-                transform = CRS.findMathTransform(worldCRS, targetCRS != null ? targetCRS
-                        : worldCRS);
-                // } else if (targetCRS != null) {
-                // transform = CRS.findMathTransform(worldCRS != null ? targetCRS : worldCRS, targetCRS);
-            }
-
-            final String geoName = geoDesc.getLocalName();
-            query.setFilter(ff.intersects(ff.property(geoName),
-                    ff.literal(transform != null ? JTS.transform(geom, transform) : geom)));
-            query.setProperties(Query.ALL_PROPERTIES);
-
-            if (!isCached(env)) {
-                return new DelegateContentFeatureSource(cacheManager, getEntry(), query) {
-                    @Override
-                    protected FeatureReader<SimpleFeatureType, SimpleFeature> getReaderInternal(
-                            Query query) throws IOException {
-                        try {
-                            lockAreas.writeLock().lock();
-                            return new PipelinedContentFeatureReader(getEntry(), query,
-                                    cacheManager);
-                        } finally {
-                            lockAreas.writeLock().unlock();
-                        }
-                    }
-                };
-            }
-
-        } catch (Exception e) {
-            // TODO LOG
-            if (LOGGER.isLoggable(Level.SEVERE)) {
-                LOGGER.severe("Unable to cache the query [" + query + "] due to exception: "
-                        + e.getLocalizedMessage());
-            }
-            throw new IOException(e);
-        }
-
-        return null;
-    }
+    // @Override
+    // public SimpleFeatureSource updateCache(Query query) throws IOException {
+    // verify(query);
+    // try {
+    // if (schema == null || sourceSchema == null) {
+    // // schema
+    // if (!initSchema())
+    // throw new IllegalStateException("Unable to initialize the schema");
+    // }
+    // final Filter[] sF = splitFilters(query, originalBounds, schema);
+    // final Envelope env = getEnvelope(sF[1], originalBounds);
+    //
+    // Geometry geom = JTS.toGeometry(env);
+    // try {
+    // lockAreas.readLock().lock();
+    // geom = geom.difference(cachedAreas.getEnvelope());
+    // } finally {
+    // lockAreas.readLock().unlock();
+    // }
+    //
+    // final CoordinateReferenceSystem targetCRS = query.getCoordinateSystemReproject();
+    // final GeometryDescriptor geoDesc = schema.getGeometryDescriptor();
+    // final CoordinateReferenceSystem worldCRS = geoDesc.getCoordinateReferenceSystem();
+    // MathTransform transform = null;
+    // if (worldCRS != null) {
+    // transform = CRS.findMathTransform(worldCRS, targetCRS != null ? targetCRS
+    // : worldCRS);
+    // // } else if (targetCRS != null) {
+    // // transform = CRS.findMathTransform(worldCRS != null ? targetCRS : worldCRS, targetCRS);
+    // }
+    //
+    // final String geoName = geoDesc.getLocalName();
+    // query.setFilter(ff.intersects(ff.property(geoName),
+    // ff.literal(transform != null ? JTS.transform(geom, transform) : geom)));
+    // query.setProperties(Query.ALL_PROPERTIES);
+    //
+    // if (!isCached(env)) {
+    // return new BaseCachedFeatureSource(cacheManager, getEntry(), query) {
+    // @Override
+    // protected FeatureReader<SimpleFeatureType, SimpleFeature> query(Query query)
+    // throws IOException {
+    // try {
+    // lockAreas.writeLock().lock();
+    // return new PipelinedContentFeatureReader(getEntry(), query,
+    // cacheManager);
+    // } finally {
+    // lockAreas.writeLock().unlock();
+    // }
+    // }
+    // };
+    // }
+    //
+    // } catch (Exception e) {
+    // // TODO LOG
+    // if (LOGGER.isLoggable(Level.SEVERE)) {
+    // LOGGER.severe("Unable to cache the query [" + query + "] due to exception: "
+    // + e.getLocalizedMessage());
+    // }
+    // throw new IOException(e);
+    // }
+    //
+    // return null;
+    // }
 
     // TODO
     // @Override
@@ -244,181 +261,7 @@ public class FeatureSourceOp extends BaseFeatureSourceOp<SimpleFeatureSource, Qu
     // return cacheManager.getSource().getSchema(entry.getName());
     // }
 
-    protected static Envelope getEnvelope(final Filter filter, final Envelope originalBounds) {
-        Envelope result = new Envelope();
-        if (filter instanceof Or) {
-            final Envelope bounds = new Envelope();
-            for (Iterator iter = ((Or) filter).getChildren().iterator(); iter.hasNext();) {
-                final Filter f = (Filter) iter.next();
-                final Envelope e = getEnvelope(f, originalBounds);
-                if (e == null)
-                    return null;
-                else
-                    bounds.expandToInclude(e);
-            }
-            result = bounds;
-        } else if (filter instanceof And) {
-            final Envelope bounds = new Envelope();
-            for (Iterator iter = ((And) filter).getChildren().iterator(); iter.hasNext();) {
-                final Filter f = (Filter) iter.next();
-                final Envelope e = getEnvelope(f, originalBounds);
-                if (e == null)
-                    return null;
-                else
-                    bounds.expandToInclude(e);
-            }
-            result = bounds;
-        } else if (filter instanceof BinarySpatialOperator) {
-            final BinarySpatialOperator gf = (BinarySpatialOperator) filter;
-
-            for (Class c : gf.getClass().getInterfaces()) {
-                if (supportedFilterTypes.contains(c)) {
-                    final Expression le = gf.getExpression1();
-                    final Expression re = gf.getExpression2();
-                    if (le instanceof PropertyName && re instanceof Literal) {
-                        // String lp = ((PropertyName) le).getPropertyName();
-                        final Object rl = ((Literal) re).getValue();
-                        if (rl instanceof Geometry) {
-                            Geometry g = (Geometry) rl;
-                            result = g.getEnvelopeInternal();
-                        }
-                    } else if (le instanceof Literal && re instanceof Literal) {
-                        final Object ll = ((Literal) le).getValue();
-                        final Object rl = ((Literal) re).getValue();
-                        if (ll instanceof Geometry && rl instanceof PropertyName) {
-                            final Geometry g = (Geometry) ll;
-                            result = g.getEnvelopeInternal();
-                        } else if (ll instanceof PropertyName && rl instanceof Geometry) {
-                            final Geometry g = (Geometry) rl;
-                            result = g.getEnvelopeInternal();
-                        }
-                    }
-                    break;
-                }
-            }
-        }
-        return result.intersection(originalBounds);
-    }
-
-    /**
-     * Splits a query into two parts, a spatial component that can be turned into a bbox filter (by including some more feature in the result) and a
-     * residual component that we cannot address with the spatial index
-     * 
-     * @param query
-     */
-    protected static Filter[] splitFilters(final Query query, final Envelope originalBounds,
-            SimpleFeatureType schema) {
-        final Filter filter = query.getFilter();
-        if (filter == null || filter.equals(Filter.EXCLUDE)) {
-            return new Filter[] { Filter.EXCLUDE, bboxFilter(originalBounds, schema) };
-        }
-
-        if (!(filter instanceof And)) {
-            final Envelope envelope = getEnvelope(filter, originalBounds);
-            if (envelope == null)
-                return new Filter[] { Filter.EXCLUDE, bboxFilter(originalBounds, schema) };
-            else
-                return new Filter[] { Filter.EXCLUDE, bboxFilter(envelope, schema) };
-        }
-
-        final And and = (And) filter;
-        final List residuals = new ArrayList();
-        final List bboxBacked = new ArrayList();
-        for (Iterator it = and.getChildren().iterator(); it.hasNext();) {
-            Filter child = (Filter) it.next();
-            if (getEnvelope(child, originalBounds) != null) {
-                bboxBacked.add(child);
-            } else {
-                residuals.add(child);
-            }
-        }
-        return new Filter[] { (Filter) ff.and(residuals), (Filter) ff.and(bboxBacked) };
-    }
-
-    private boolean isCached(Envelope envelope) {
-        verify(envelope);
-        try {
-            lockAreas.readLock().lock();
-            // cached data?
-            if (cachedAreas.contains(JTS.toGeometry(envelope))) {
-                return true;
-            }
-        } finally {
-            lockAreas.readLock().unlock();
-        }
-        return false;
-    }
-
-    private static BBOX bboxFilter(Envelope bbox, FeatureType schema) {
-        return ff.bbox(schema.getGeometryDescriptor().getLocalName(), bbox.getMinX(),
-                bbox.getMinY(), bbox.getMaxX(), bbox.getMaxY(), null);
-    }
-
-    private boolean initSchema() throws IOException {
-        final ContentEntry entry = getEntry();
-        if (entry != null) {
-            final Name name = entry.getName();
-            sourceSchema = cacheManager.getSource().getSchema(name);
-            final SchemaOp schemaOp = cacheManager.getCachedOpOfType(Operation.schema,
-                    SchemaOp.class);
-            if (schemaOp != null) {
-                if (!schemaOp.isCached(name)) {
-                    schema = schemaOp.updateCache(name);
-                    schemaOp.setCached(schema != null ? true : false, name);
-                } else {
-                    schema = schemaOp.getCache(getEntry().getName());
-                }
-            } else {
-                schema = sourceSchema;
-            }
-            return true;
-        }
-        return false;
-    }
-
-    /**
-     * @param clear if true create and store in cache a new cachedAreas object also updating the current instance
-     */
-    private void initCachedAreas(final boolean clear) {
-        final ValueWrapper vw = ehCacheManager.get(getUid());
-        try {
-            lockAreas.writeLock().lock();
-            if (vw != null && !clear) {
-                cachedAreas = (Geometry) vw.get();
-            } else {
-                cachedAreas = new Polygon(null, null, JTSFactoryFinder.getGeometryFactory());
-                ehCacheManager.put(cachedAreas, getUid());
-            }
-        } finally {
-            lockAreas.writeLock().unlock();
-        }
-    }
-
-    private void initOriginalBounds(final Query query) throws IOException {
-        if (query == null) {
-            originalBounds = new Envelope(-Double.MAX_VALUE, Double.MAX_VALUE, -Double.MAX_VALUE,
-                    Double.MAX_VALUE);
-        }
-
-        final CachedOp<Envelope, Query, Query> bOp = cacheManager.getCachedOpOfType(
-                Operation.bounds, CachedOp.class);
-        Envelope bounds = null;
-        if (bOp != null) {
-            if (!bOp.isCached(query)) {
-                bounds = bOp.updateCache(query);
-                bOp.setCached(bounds != null ? true : false, query);
-            } else {
-                bounds = bOp.getCache(query);
-            }
-        }
-        if (bounds == null) {
-            originalBounds = new Envelope(-Double.MAX_VALUE, Double.MAX_VALUE, -Double.MAX_VALUE,
-                    Double.MAX_VALUE);
-        } else {
-            originalBounds = bounds;
-        }
-    }
-
+    
     protected static <T> void ehCachePut(Cache ehCacheManager, T value, Object... keys)
             throws IOException {
         verify(ehCacheManager);

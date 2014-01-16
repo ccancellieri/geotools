@@ -145,7 +145,7 @@ public class CacheStatus {
     /**
      * clear the cache status and all of the sub caches
      */
-    public void clear() {
+    public void clear() throws IOException {
         try {
             this.cachedOpMapLock.writeLock().lock();
             // recursively clear

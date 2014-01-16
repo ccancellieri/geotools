@@ -53,14 +53,14 @@ public class DelegateContentFeatureSource extends ContentFeatureSource {
 
     @Override
     protected ReferencedEnvelope getBoundsInternal(Query query) throws IOException {
-        final CachedOp<ReferencedEnvelope, Query, Query> op = cacheManager.getCachedOpOfType(
+        final CachedOp<ReferencedEnvelope, Query, String> op = cacheManager.getCachedOpOfType(
                 Operation.bounds, CachedOp.class);
         ReferencedEnvelope env = null;
         if (op != null) {
             try {
-                if (!op.isCached(query)) {
+                if (!op.isCached(cacheManager.getUID())) {
                     env = op.updateCache(query);
-                    op.setCached(env != null ? true : false, query);
+                    op.setCached(env != null ? true : false, cacheManager.getUID());
                 } else {
                     env = op.getCache(query);
                 }
@@ -112,10 +112,10 @@ public class DelegateContentFeatureSource extends ContentFeatureSource {
         if (op != null) {
             op.setEntry(getEntry());
             try {
-                if (!op.isCached(query)) {
+                if (!op.isCached(cacheManager.getUID())) {
                     final Query updateQuery = new Query(query);
                     final SimpleFeatureSource source = op.updateCache(updateQuery);
-                    op.setCached(source != null ? true : false, updateQuery);
+                    op.setCached(source != null ? true : false, cacheManager.getUID());
 //                    query.setFilter(FeatureSourceOp.ff.and(query.getFilter(),
 //                            FeatureSourceOp.ff.not(updateQuery.getFilter())));
                     return new SimpleFeatureCollectionReader(cacheManager, source.getFeatures(),
@@ -143,9 +143,9 @@ public class DelegateContentFeatureSource extends ContentFeatureSource {
         if (op != null) {
             final Name name = getEntry().getName();
             try {
-                if (!op.isCached(name)) {
+                if (!op.isCached(cacheManager.getUID())) {
                     schema = op.updateCache(name);
-                    op.setCached(schema != null ? true : false, name);
+                    op.setCached(schema != null ? true : false, cacheManager.getUID());
                 } else {
                     schema = op.getCache(name);
                 }

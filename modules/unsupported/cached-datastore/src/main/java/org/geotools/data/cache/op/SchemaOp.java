@@ -3,21 +3,15 @@ package org.geotools.data.cache.op;
 import java.io.IOException;
 import java.sql.Timestamp;
 import java.util.Calendar;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.logging.Level;
 
 import org.geotools.feature.NameImpl;
 import org.geotools.feature.simple.SimpleFeatureTypeBuilder;
 import org.geotools.feature.simple.SimpleSchema;
 import org.geotools.feature.type.AttributeDescriptorImpl;
-import org.opengis.feature.Feature;
-import org.opengis.feature.Property;
 import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.feature.type.Name;
 
-public class SchemaOp extends BaseSchemaOp<Name, Name> {
+public class SchemaOp extends BaseSchemaOp<Name, String> {
 
     // final Map<Name,SimpleFeatureType> schemas=new HashMap<Name, SimpleFeatureType>();
 
@@ -51,7 +45,7 @@ public class SchemaOp extends BaseSchemaOp<Name, Name> {
 
         final SimpleFeatureType newSchema = b.buildFeatureType();
 
-        if (isCached(name)) {
+        if (isCached(cacheManager.getUID())) {
             // cache.createSchema(SimpleFeatureTypeBuilder.copy(store.getSchema(name)));
             cacheManager.getCache().updateSchema(name, newSchema);
         } else {
@@ -66,44 +60,44 @@ public class SchemaOp extends BaseSchemaOp<Name, Name> {
         verify(o);
         return cacheManager.getCache().getSchema(o);
     }
-//
-//    @Override
-//    public Collection<Property> enrich(Feature sourceF, Feature destinationF) throws IOException {
-//        final Collection<Property> props = destinationF.getProperties();
-//        final Map<Name, Property> sourceMap = new HashMap<Name, Property>();
-//        for (Property p : sourceF.getValue()) {
-//            sourceMap.put(p.getName(), p);
-//        }
-//        for (Property p : props) {
-//            if (p.getName().getLocalPart().equalsIgnoreCase(HINTS_NAME)) {
-//                final Class c = p.getType().getBinding();
-//                if (c.isAssignableFrom(SimpleSchema.LONG.getBinding())) {
-//                    Long oldValue = (Long) SimpleSchema.LONG.getBinding().cast(p.getValue());
-//                    p.setValue(oldValue != null ? ++oldValue : 0);
-//                } else {
-//                    throw new IOException("Unable to enrich this feature: wrong binding class ("
-//                            + c + ") for property: " + p.getName());
-//                }
-//            } else if (p.getName().getLocalPart().equalsIgnoreCase(TIMESTAMP_NAME)) {
-//                final Class c = p.getType().getBinding();
-//                if (c.isAssignableFrom(SimpleSchema.DATETIME.getBinding())) {
-//                    p.setValue(new Timestamp(Calendar.getInstance().getTimeInMillis()));
-//                } else {
-//                    throw new IOException("Unable to enrich this feature: wrong binding class ("
-//                            + c + ") for property: " + p.getName());
-//                }
-//            } else {
-//                final Property newP = sourceMap.get(p.getName());
-//                if (newP != null) {
-//                    p.setValue(newP.getValue());
-//                } else {
-//                    if (LOGGER.isLoggable(Level.WARNING)) {
-//                        LOGGER.warning("Skipping not found property named: " + p.getName());
-//                    }
-//                }
-//            }
-//        }
-//        return props;
-//    }
+    //
+    // @Override
+    // public Collection<Property> enrich(Feature sourceF, Feature destinationF) throws IOException {
+    // final Collection<Property> props = destinationF.getProperties();
+    // final Map<Name, Property> sourceMap = new HashMap<Name, Property>();
+    // for (Property p : sourceF.getValue()) {
+    // sourceMap.put(p.getName(), p);
+    // }
+    // for (Property p : props) {
+    // if (p.getName().getLocalPart().equalsIgnoreCase(HINTS_NAME)) {
+    // final Class c = p.getType().getBinding();
+    // if (c.isAssignableFrom(SimpleSchema.LONG.getBinding())) {
+    // Long oldValue = (Long) SimpleSchema.LONG.getBinding().cast(p.getValue());
+    // p.setValue(oldValue != null ? ++oldValue : 0);
+    // } else {
+    // throw new IOException("Unable to enrich this feature: wrong binding class ("
+    // + c + ") for property: " + p.getName());
+    // }
+    // } else if (p.getName().getLocalPart().equalsIgnoreCase(TIMESTAMP_NAME)) {
+    // final Class c = p.getType().getBinding();
+    // if (c.isAssignableFrom(SimpleSchema.DATETIME.getBinding())) {
+    // p.setValue(new Timestamp(Calendar.getInstance().getTimeInMillis()));
+    // } else {
+    // throw new IOException("Unable to enrich this feature: wrong binding class ("
+    // + c + ") for property: " + p.getName());
+    // }
+    // } else {
+    // final Property newP = sourceMap.get(p.getName());
+    // if (newP != null) {
+    // p.setValue(newP.getValue());
+    // } else {
+    // if (LOGGER.isLoggable(Level.WARNING)) {
+    // LOGGER.warning("Skipping not found property named: " + p.getName());
+    // }
+    // }
+    // }
+    // }
+    // return props;
+    // }
 
 }

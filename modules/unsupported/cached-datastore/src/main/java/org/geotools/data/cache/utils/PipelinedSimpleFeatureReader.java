@@ -40,6 +40,8 @@ public class PipelinedSimpleFeatureReader implements
 
     private int currentReader = 0;
 
+    private final CacheManager cacheManager;
+
     public PipelinedSimpleFeatureReader(CacheManager cacheManager,
             FeatureReader<SimpleFeatureType, SimpleFeature>... coll) throws IOException {
         if (coll == null || coll.length == 0) {
@@ -57,6 +59,7 @@ public class PipelinedSimpleFeatureReader implements
 
         this.schemaOp = cacheManager.getCachedOpOfType(Operation.schema, SchemaOp.class);
         this.nextOp = cacheManager.getCachedOpOfType(Operation.next, NextOp.class);
+        this.cacheManager=cacheManager;
     }
 
     private FeatureReader<SimpleFeatureType, SimpleFeature> nextReader() throws IOException {
@@ -77,9 +80,9 @@ public class PipelinedSimpleFeatureReader implements
         if (schemaOp != null) {
             final Name name = schema.getName();
             try {
-                if (!schemaOp.isCached(name)) {
+                if (!schemaOp.isCached(cacheManager.getUID())) {
                     cachedSchema = schemaOp.updateCache(name);
-                    schemaOp.setCached(schema != null ? true : false, name);
+                    schemaOp.setCached(schema != null ? true : false, cacheManager.getUID());
                 } else {
                     cachedSchema = schemaOp.getCache(name);
                 }
@@ -106,9 +109,9 @@ public class PipelinedSimpleFeatureReader implements
             SimpleFeature feature = null;
             nextOp.setSf(sf);
             nextOp.setDf(df);
-            if (!nextOp.isCached(null)) {
+            if (!nextOp.isCached(cacheManager.getUID())) {
                 feature = nextOp.updateCache(null);
-                nextOp.setCached(feature != null ? true : false, feature.getID());
+                nextOp.setCached(feature != null ? true : false, cacheManager.getUID());
             } else {
                 feature = nextOp.getCache(null);
             }
