@@ -80,7 +80,7 @@ public class NextOp extends BaseOp<SimpleFeature, FeatureId> {
                 final Class c = p.getType().getBinding();
                 if (SimpleSchema.DATETIME.getBinding().isAssignableFrom(c)) {
                     final Object o = p.getValue();
-                    if (o != null) {
+                    if (o != null && !updateTimestamp) {
                         final Timestamp oldValue = (Timestamp) SimpleSchema.DATETIME.getBinding()
                                 .cast(o);
                         p.setValue(oldValue);
@@ -89,7 +89,7 @@ public class NextOp extends BaseOp<SimpleFeature, FeatureId> {
                     }
                 } else if (Date.class.isAssignableFrom(c)) {
                     final Object o = p.getValue();
-                    if (o != null) {
+                    if (o != null && !updateTimestamp) {
                         Date date = (Date) o;
                         final Timestamp oldValue = new Timestamp(date.getTime());
                         p.setValue(oldValue);

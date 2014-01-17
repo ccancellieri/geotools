@@ -224,16 +224,20 @@ public class CacheStatus {
      * @throws IOException
      */
     public void dispose() throws IOException {
+        
         try {
-            this.cachedOpMapLock.writeLock().lock();
+            this.cachedOpMapLock.readLock().lock();
             if (this.cachedOpMap != null) {
                 for (CachedOp<?, ?> op : cachedOpMap.values()) {
                     op.dispose();
                 }
             }
         } finally {
-            this.cachedOpMapLock.writeLock().unlock();
+            this.cachedOpMapLock.readLock().unlock();
         }
+        
+        // save status
+        save();
     }
 
     public String createCachedOpUID(Operation op) {

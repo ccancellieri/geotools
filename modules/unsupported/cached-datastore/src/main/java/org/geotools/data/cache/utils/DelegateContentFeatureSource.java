@@ -6,6 +6,7 @@ import java.util.logging.Logger;
 
 import org.geotools.data.FeatureReader;
 import org.geotools.data.Query;
+import org.geotools.data.cache.op.BaseFeatureSourceOp;
 import org.geotools.data.cache.op.CacheManager;
 import org.geotools.data.cache.op.CachedOp;
 import org.geotools.data.cache.op.FeatureSourceOp;
@@ -107,23 +108,24 @@ public class DelegateContentFeatureSource extends ContentFeatureSource {
     @Override
     protected FeatureReader<SimpleFeatureType, SimpleFeature> getReaderInternal(Query query)
             throws IOException {
-        final FeatureSourceOp op = cacheManager.getCachedOpOfType(Operation.featureSource,
-                FeatureSourceOp.class);
+        final BaseFeatureSourceOp<SimpleFeatureSource> op = cacheManager.getCachedOpOfType(
+                Operation.featureSource, BaseFeatureSourceOp.class);
         if (op != null) {
             op.setEntry(getEntry());
+            op.setSchema(getSchema());
             try {
                 if (!op.isCached(query) || op.isDirty(query)) {
 
-                    final Query updateQuery = new Query(query);
-                    
-                    final SimpleFeatureSource source = op.updateCache(updateQuery);
+                    final SimpleFeatureSource source = op.updateCache(query);
                     if (source != null) {
                         op.setCached(query, true);
-                        return new SimpleFeatureCollectionReader(cacheManager, source.getFeatures());
+                        return new SimpleFeatureCollectionReader(cacheManager,
+                                source.getFeatures(query));
                     } else {
                         op.setCached(query, false);
-                        throw new IOException("Unable to create a simple feature source from the passed query: "
-                                            + updateQuery);
+                        throw new IOException(
+                                "Unable to create a simple feature source from the passed query: "
+                                        + query);
                     }
                 }
                 return new SimpleFeatureCollectionReader(cacheManager, op.getCache(query)
@@ -136,7 +138,7 @@ public class DelegateContentFeatureSource extends ContentFeatureSource {
             }
         }
         if (LOGGER.isLoggable(Level.WARNING)) {
-            LOGGER.log(Level.WARNING, "No cached operation is found: "+Operation.featureSource);
+            LOGGER.log(Level.WARNING, "No cached operation is found: " + Operation.featureSource);
         }
         // if (source != null) {
         // return new SimpleFeatureCollectionReader(cacheManager, source.getFeatures()); // TODO pass the query????

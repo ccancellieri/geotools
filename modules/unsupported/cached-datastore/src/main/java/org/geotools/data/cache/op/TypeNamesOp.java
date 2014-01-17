@@ -23,26 +23,19 @@ public class TypeNamesOp extends BaseOp<List<Name>, String> {
     @Override
     public List<Name> updateCache(String arg) throws IOException {
         final List<Name> names = cacheManager.getSource().getNames();
-        final SchemaOp op = cacheManager.getCachedOpOfType(Operation.schema, SchemaOp.class);
-        // create schemas
-        for (Name name : names) {
-            SimpleFeatureType schema = null;
-            if (op != null) {
-                if (!op.isCached(name) || op.isDirty(name)) {
-                    schema = op.updateCache(name);
-                    op.setCached(name, schema != null ? true : false);
+        final SchemaOp schemaOp = cacheManager.getCachedOpOfType(Operation.schema, SchemaOp.class);
+        if (schemaOp != null) {
+            // create schemas
+            for (Name name : names) {
+                SimpleFeatureType schema = null;
+                if (!schemaOp.isCached(name) || schemaOp.isDirty(name)) {
+                    schema = schemaOp.updateCache(name);
+                    schemaOp.setCached(name, schema != null ? true : false);
                 } else {
-                    schema = op.getCache(name);
+                    schema = schemaOp.getCache(name);
                 }
             }
-            if (schema != null) {
-                cacheManager.getCache().createSchema(schema);
-            } else {
-                // LOG warn no schema wrapping means no timestamp is used
-                cacheManager.getCache().createSchema(cacheManager.getSource().getSchema(name));
-            }
         }
-
         return names;
     }
 

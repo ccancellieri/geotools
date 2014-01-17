@@ -19,8 +19,7 @@ import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.feature.type.Name;
 
-public class PipelinedContentFeatureReader implements
-        FeatureReader<SimpleFeatureType, SimpleFeature> {
+public class SimpleFeatureUpdaterReader implements FeatureReader<SimpleFeatureType, SimpleFeature> {
     private final transient Logger LOGGER = org.geotools.util.logging.Logging.getLogger(getClass()
             .getPackage().getName());
 
@@ -36,18 +35,13 @@ public class PipelinedContentFeatureReader implements
 
     private FeatureWriter<SimpleFeatureType, SimpleFeature> fw = null;
 
-    private FeatureReader<SimpleFeatureType, SimpleFeature> fr = null;
-
-    private FeatureReader<SimpleFeatureType, SimpleFeature> frDiff = null;
-
-    public PipelinedContentFeatureReader(ContentEntry entry, final Query origQuery,
-            final Query integratedQuery, final CacheManager cacheManager) throws IOException {
-        this(entry, origQuery, integratedQuery, cacheManager, Transaction.AUTO_COMMIT);
+    public SimpleFeatureUpdaterReader(ContentEntry entry, final Query query,
+            final CacheManager cacheManager) throws IOException {
+        this(entry, query, cacheManager, Transaction.AUTO_COMMIT);
     }
 
-    public PipelinedContentFeatureReader(ContentEntry entry, final Query origQuery,
-            final Query integratedQuery, final CacheManager cacheManager,
-            final Transaction transaction) throws IOException {
+    public SimpleFeatureUpdaterReader(ContentEntry entry, final Query query,
+            final CacheManager cacheManager, final Transaction transaction) throws IOException {
 
         this.entry = entry;
         this.cacheManager = cacheManager;
@@ -55,10 +49,8 @@ public class PipelinedContentFeatureReader implements
         this.schemaOp = cacheManager.getCachedOpOfType(Operation.schema, SchemaOp.class);
         this.transaction = transaction;
 
-        fr = cacheManager.getSource().getFeatureReader(integratedQuery, transaction);
-        fw = cacheManager.getCache().getFeatureWriter(integratedQuery.getTypeName(), transaction);
+        fw = cacheManager.getCache().getFeatureWriter(query.getTypeName(), transaction);
 
-        frDiff = cacheManager.getCache().getFeatureReader(origQuery, transaction);
     }
 
     @Override
@@ -92,67 +84,40 @@ public class PipelinedContentFeatureReader implements
     @Override
     public SimpleFeature next() throws IOException, IllegalArgumentException,
             NoSuchElementException {
-        if (fr.hasNext()) {
-            final SimpleFeature sf = fr.next();
-            final SimpleFeature df = fw.next();
-            // try using next operation
-            if (nextOp != null) {
-                SimpleFeature feature = null;
-                nextOp.setSf(sf);
-                nextOp.setDf(df);
-                if (!nextOp.isCached(sf.getIdentifier()) || nextOp.isDirty(sf.getIdentifier())) {
-                    feature = nextOp.updateCache(sf.getIdentifier());
-                    nextOp.setCached(sf.getIdentifier(), feature != null ? true : false);
-                } else {
-                    feature = nextOp.getCache(sf.getIdentifier());
-                }
-                if (feature != null) {
-                    fw.write();
-                    return feature;
-                }
+        final SimpleFeature df = fw.next();
+        // try using next operation
+        if (nextOp != null) {
+            SimpleFeature feature = null;
+            nextOp.setSf(df);
+            nextOp.setDf(df);
+            if (!nextOp.isCached(df.getIdentifier()) || nextOp.isDirty(df.getIdentifier())) {
+                feature = nextOp.updateCache(df.getIdentifier());
+                nextOp.setCached(df.getIdentifier(), feature != null ? true : false);
+            } else {
+                feature = nextOp.getCache(df.getIdentifier());
             }
-            for (Property p : sf.getProperties()) {
-                df.getProperty(p.getName()).setValue(p.getValue());
+            if (feature != null) {
+                fw.write();
+                return feature;
             }
-            fw.write();
-            return df;
-        } else {
-            // conclude returning the diff
-            return frDiff.next();
         }
+        // for (Property p : sf.getProperties()) {
+        // df.getProperty(p.getName()).setValue(p.getValue());
+        // }
+        // fw.write();
+        return df;
     }
 
     @Override
     public boolean hasNext() throws IOException {
-        boolean notEnd = fr.hasNext() || frDiff.hasNext();
-        // at the end clear remaining (dirty) features
-        // if (!notEnd) {
-        // // TODO check me
-        // while (fw.hasNext()) {
-        // fw.next();
-        // fw.remove();
-        // }
-        // }
-        return notEnd;
+        return fw.hasNext();
     }
 
     @Override
     public void close() throws IOException {
-        if (fr != null) {
-            try {
-                fr.close();
-            } catch (IOException e) {
-            }
-        }
         if (fw != null) {
             try {
                 fw.close();
-            } catch (IOException e) {
-            }
-        }
-        if (frDiff != null) {
-            try {
-                frDiff.close();
             } catch (IOException e) {
             }
         }

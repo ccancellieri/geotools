@@ -7,6 +7,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import org.geotools.data.FeatureReader;
 import org.geotools.data.Query;
+import org.geotools.data.Transaction;
 import org.geotools.data.cache.op.BaseFeatureSourceOp;
 import org.geotools.data.cache.op.CacheManager;
 import org.geotools.data.cache.utils.DelegateContentFeatureSource;
@@ -25,7 +26,7 @@ import com.vividsolutions.jts.index.strtree.STRtree;
 public class STRFeatureSourceOp extends BaseFeatureSourceOp<SimpleFeatureSource> {
 
     // the cache container
-    private STRtree index;
+    private STRtree index = new STRtree();
 
     // lock on cache
     private ReadWriteLock lockIndex = new ReentrantReadWriteLock();
@@ -36,21 +37,9 @@ public class STRFeatureSourceOp extends BaseFeatureSourceOp<SimpleFeatureSource>
 
     @Override
     public SimpleFeatureSource updateCache(Query query) throws IOException {
-        final SimpleFeatureSource featureSource = new DelegateContentFeatureSource(cacheManager,
-                getEntry(), query) {
-            @Override
-            protected FeatureReader<SimpleFeatureType, SimpleFeature> getReaderInternal(Query query)
-                    throws IOException {
+        updateIndex(super.integrateCachedQuery(query));
 
-                if (isCached(query) && !isDirty(query)) {
-                    return cacheManager.getCache().getFeatureReader(query, transaction);
-                } else {
-                    return new PipelinedContentFeatureReader(getEntry(), query,
-                            integrateCachedQuery(query), cacheManager, transaction);
-                }
-            }
-        };
-        return featureSource;
+        return getCache(query);
     }
 
     @Override
@@ -62,10 +51,6 @@ public class STRFeatureSourceOp extends BaseFeatureSourceOp<SimpleFeatureSource>
             @Override
             protected FeatureReader<SimpleFeatureType, SimpleFeature> getReaderInternal(Query query)
                     throws IOException {
-
-                if (!isCached(query) || isDirty(query)) {
-                    updateIndex(query);
-                }
 
                 return new SimpleFeatureListReader(getListOfFeatures(query), schema);
             }
@@ -90,31 +75,32 @@ public class STRFeatureSourceOp extends BaseFeatureSourceOp<SimpleFeatureSource>
         SimpleFeatureSource features = cacheManager.getSource().getFeatureSource(
                 query.getTypeName());
         FeatureIterator<SimpleFeature> fi = null;
+
+        STRtree newIndex = new STRtree();
+        fi = features.getFeatures(query).features();
+        boolean dirty = false;
+        if (fi.hasNext()) {
+            dirty = true;
+        }
+        while (fi.hasNext()) {
+            // consider turning all geometries into packed ones, to save space
+            Feature f = fi.next();
+
+            newIndex.insert(ReferencedEnvelope.reference(f.getBounds()), f);
+
+        }
+        if (dirty) {
+            // fill with old values
+            try {
+                lockIndex.readLock().lock();
+                walkSTRtree(newIndex, index.itemsTree());
+            } finally {
+                lockIndex.readLock().unlock();
+            }
+
+        }
         try {
             lockIndex.writeLock().lock();
-            if (this.index == null) {
-                this.index = new STRtree();
-            }
-            STRtree newIndex = new STRtree();
-            fi = features.getFeatures(query).features();
-            boolean dirty = false;
-            while (fi.hasNext()) {
-                // consider turning all geometries into packed ones, to save space
-                Feature f = fi.next();
-
-                // TODO
-                // if (schemaOp != null) {
-                // newIndex.insert(ReferencedEnvelope.reference(f.getBounds()),
-                // schemaOp.enrich(f, f));
-                // } else {
-                newIndex.insert(ReferencedEnvelope.reference(f.getBounds()), f);
-                // }
-                dirty = true;
-            }
-            if (dirty) {
-                // fill with old values
-                walkSTRtree(newIndex, index.itemsTree());
-            }
             index = newIndex;
         } finally {
             if (fi != null) {

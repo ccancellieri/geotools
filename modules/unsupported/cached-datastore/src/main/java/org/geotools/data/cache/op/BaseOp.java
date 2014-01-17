@@ -33,7 +33,7 @@ public abstract class BaseOp<T, K> implements CachedOp<T, K> {
     protected final String uid;
 
     // status of this operation
-    protected Map<K, Boolean> isCachedMap = new HashMap<K, Boolean>();
+    protected final Map<K, Boolean> isCachedMap = new HashMap<K, Boolean>();
 
     // lock
     protected final transient ReadWriteLock isCachedLock = new ReentrantReadWriteLock();
@@ -65,9 +65,7 @@ public abstract class BaseOp<T, K> implements CachedOp<T, K> {
 
     @Override
     public void dispose() throws IOException {
-        if (cacheManager.getCache() != null) {
-            cacheManager.getCache().dispose();
-        }
+        
         save();
     }
 

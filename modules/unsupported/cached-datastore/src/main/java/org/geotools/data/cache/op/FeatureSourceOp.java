@@ -4,8 +4,11 @@ import java.io.IOException;
 
 import org.geotools.data.FeatureReader;
 import org.geotools.data.Query;
+import org.geotools.data.Transaction;
 import org.geotools.data.cache.utils.DelegateContentFeatureSource;
 import org.geotools.data.cache.utils.PipelinedContentFeatureReader;
+import org.geotools.data.cache.utils.SimpleFeatureCollectionReader;
+import org.geotools.data.cache.utils.SimpleFeatureUpdaterReader;
 import org.geotools.data.simple.SimpleFeatureSource;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
@@ -18,7 +21,15 @@ public class FeatureSourceOp extends BaseFeatureSourceOp<SimpleFeatureSource> {
 
     @Override
     public SimpleFeatureSource getCache(Query query) throws IOException {
-        return cacheManager.getCache().getFeatureSource(query.getTypeName());
+        final SimpleFeatureSource featureSource = new DelegateContentFeatureSource(cacheManager,
+                getEntry(), query) {
+            @Override
+            protected FeatureReader<SimpleFeatureType, SimpleFeature> getReaderInternal(Query query)
+                    throws IOException {
+                return new SimpleFeatureUpdaterReader(getEntry(), query, cacheManager, Transaction.AUTO_COMMIT);
+            }
+        };
+        return featureSource; 
     }
 
     @Override
@@ -28,13 +39,11 @@ public class FeatureSourceOp extends BaseFeatureSourceOp<SimpleFeatureSource> {
             @Override
             protected FeatureReader<SimpleFeatureType, SimpleFeature> getReaderInternal(Query query)
                     throws IOException {
-
-                if (isCached(query) && !isDirty(query)) {
-                    return cacheManager.getCache().getFeatureReader(query, transaction);
-                } else {
-                    return new PipelinedContentFeatureReader(getEntry(), query,
-                            integrateCachedQuery(query), cacheManager, transaction);
-                }
+//                return new SimpleFeatureCollectionReader(cacheManager, cacheManager.getSource().getFeatureSource(query.getTypeName()).getFeatures(query), ...);
+//                return new PipelinedContentFeatureReader(getEntry(), query,
+//                        integrateCachedQuery(query), cacheManager, getTransaction());
+                    return new PipelinedContentFeatureReader(getEntry(), diffCachedQuery(query),
+                            integrateCachedQuery(query), cacheManager, Transaction.AUTO_COMMIT);
             }
         };
         return featureSource;

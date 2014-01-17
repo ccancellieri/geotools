@@ -89,16 +89,20 @@ public class CachedOpSPIMapParam extends Param {
         final Iterator<Entry<String, CachedOpSPI<?>>> it=value.entrySet().iterator();
         if (it.hasNext()){
             Entry<String, CachedOpSPI<?>> e=it.next();
-            sw.write(e.getKey());
-            sw.write('=');
-            sw.write(e.getValue().getClass().getName());
+            if (e.getValue()!=null){
+                sw.write(e.getKey());
+                sw.write('=');
+                sw.write(e.getValue().getClass().getName());
+            }
         }
         while (it.hasNext()) {
-            sw.write(',');
             Entry<String, CachedOpSPI<?>> e=it.next();
-            sw.write(e.getKey());
-            sw.write('=');
-            sw.write(e.getValue().getClass().getName());
+            if (e.getValue()!=null){
+                sw.write(',');
+                sw.write(e.getKey());
+                sw.write('=');
+                sw.write(e.getValue().getClass().getName());
+            }
         }
         sw.write('}');
         return sw.toString();
