@@ -45,11 +45,11 @@ public class PipelinedContentFeatureReader extends DelegateSimpleFeature
 
 		fr = cacheManager.getSource()
 				.getFeatureReader(sourceQuery, transaction);
-		fw = cacheManager.getCache().getFeatureWriterAppend(
-				cachedAreasQuery.getTypeName(), // sourceQuery.getFilter(),
-												// //java.util.NoSuchElementException:
-												// FeatureWriter does not have
-												// additional content
+		fw = cacheManager.getCache().getFeatureWriter(
+				sourceQuery.getTypeName(), sourceQuery.getFilter(),
+				// //java.util.NoSuchElementException:
+				// FeatureWriter does not have
+				// additional content
 				transaction);
 
 		frDiff = cacheManager.getCache().getFeatureReader(cachedAreasQuery,
@@ -64,9 +64,18 @@ public class PipelinedContentFeatureReader extends DelegateSimpleFeature
 	@Override
 	protected SimpleFeature getNextInternal() throws IllegalArgumentException,
 			NoSuchElementException, IOException {
+		if (!fw.hasNext()) {
+			try {
+				fw.close();
+			} catch (Exception e) {
+
+			}
+			fw = cacheManager.getCache().getFeatureWriterAppend(
+					getFeatureTypeName().getLocalPart(), transaction);
+		}
 		final SimpleFeature df = fw.next();
 		for (final Property p : fr.next().getProperties()) {
-			df.getProperty(p.getName()).setValue(p.getValue());
+			df.setAttribute(p.getName(), p.getValue());
 		}
 		return df;
 	}
@@ -76,10 +85,6 @@ public class PipelinedContentFeatureReader extends DelegateSimpleFeature
 			NoSuchElementException {
 		if (fr.hasNext()) {
 			final SimpleFeature df = super.next();
-			// for (final Property p : super.next().getProperties()) {
-			// df.getProperty(p.getName()).setValue(p.getValue());
-			// }
-			// df.setValue(super.next());
 			fw.write();
 			return df;
 		} else {

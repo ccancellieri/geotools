@@ -1,11 +1,14 @@
 package org.geotools.data.cache.utils;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import org.geotools.data.DataSourceException;
 import org.geotools.data.FeatureReader;
 import org.geotools.data.Query;
+import org.geotools.data.Transaction;
 import org.geotools.data.cache.op.BaseFeatureSourceOp;
 import org.geotools.data.cache.op.CacheManager;
 import org.geotools.data.cache.op.CachedOp;
@@ -14,6 +17,7 @@ import org.geotools.data.cache.op.SchemaOp;
 import org.geotools.data.simple.SimpleFeatureSource;
 import org.geotools.data.store.ContentEntry;
 import org.geotools.data.store.ContentFeatureSource;
+import org.geotools.feature.IllegalAttributeException;
 import org.geotools.geometry.jts.ReferencedEnvelope;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
@@ -110,7 +114,34 @@ public class DelegateContentFeatureSource extends ContentFeatureSource {
 		if (count != null) {
 			return count;
 		} else {
-			return delegate.getCount(query);
+			count = delegate.getCount(query);
+			
+			if (count != -1) {
+				// optimization worked, return maxFeatures if count is
+				// greater.
+				int maxFeatures = query.getMaxFeatures();
+				return (count < maxFeatures) ? count : maxFeatures;
+			}
+
+			// Okay lets count the FeatureReader
+			try {
+				count = 0;
+				Query q=new Query(query.getTypeName(), query.getFilter(), Collections.singletonList(query.getProperties().get(0)));
+				FeatureReader<SimpleFeatureType, SimpleFeature> reader = cacheManager
+						.getSource().getFeatureReader(q,
+								Transaction.AUTO_COMMIT);
+				try {
+					for (; reader.hasNext(); count++) {
+						reader.next();
+					}
+				} finally {
+					reader.close();
+				}
+
+				return count;
+			} catch (IllegalAttributeException e) {
+				throw new DataSourceException("Could not read feature ", e);
+			}
 		}
 	}
 
@@ -151,13 +182,9 @@ public class DelegateContentFeatureSource extends ContentFeatureSource {
 			LOGGER.log(Level.WARNING, "No cached operation is found: "
 					+ Operation.featureSource);
 		}
-		// if (source != null) {
-		// return new SimpleFeatureCollectionReader(cacheManager,
-		// source.getFeatures()); // TODO pass the query????
-		// } else {
+
 		return new SimpleFeatureCollectionReader(cacheManager, getSchema(),
 				delegate.getFeatures(query));
-		// }
 	}
 
 	@Override

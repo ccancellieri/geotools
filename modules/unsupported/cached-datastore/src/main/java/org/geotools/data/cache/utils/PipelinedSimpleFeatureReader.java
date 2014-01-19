@@ -62,7 +62,10 @@ public class PipelinedSimpleFeatureReader extends DelegateSimpleFeatureReader {
 	@Override
 	public void close() throws IOException {
 		do {
-			delegate.close();
+			try {
+				delegate.close();
+			} catch (Exception e) {
+			}
 			delegate = nextReader();
 		} while (hasNextCollection());
 	}

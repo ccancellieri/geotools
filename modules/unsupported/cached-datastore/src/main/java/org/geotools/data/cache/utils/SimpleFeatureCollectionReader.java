@@ -16,7 +16,7 @@ import org.opengis.feature.type.Name;
  * 
  */
 public class SimpleFeatureCollectionReader extends DelegateSimpleFeature {
-	
+
 	private final SimpleFeatureCollection[] collection;
 
 	private final SimpleFeatureType schema;
@@ -25,12 +25,12 @@ public class SimpleFeatureCollectionReader extends DelegateSimpleFeature {
 
 	private int currentCollection = 0;
 
+	public SimpleFeatureCollectionReader(CacheManager cacheManager,
+			SimpleFeatureType schema, SimpleFeatureCollection... coll)
+			throws IOException {
 
-	public SimpleFeatureCollectionReader(CacheManager cacheManager, SimpleFeatureType schema,
-			SimpleFeatureCollection... coll) throws IOException {
-		
 		super(cacheManager);
-		
+
 		if (coll == null || coll.length == 0) {
 			throw new IllegalArgumentException("Unable to create a "
 					+ this.getClass()
@@ -43,7 +43,6 @@ public class SimpleFeatureCollectionReader extends DelegateSimpleFeature {
 		this.schema = schema;
 
 	}
-	
 
 	@Override
 	protected Name getFeatureTypeName() {
@@ -84,9 +83,13 @@ public class SimpleFeatureCollectionReader extends DelegateSimpleFeature {
 
 	@Override
 	public void close() throws IOException {
-		if (it!=null)
-			it.close();
-	}
+		if (it != null) {
+			try {
+				it.close();
+			} catch (Exception e) {
+			}
+		}
 
+	}
 
 }

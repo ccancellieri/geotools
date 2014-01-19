@@ -26,7 +26,7 @@ public class SimpleFeatureUpdaterReader extends DelegateSimpleFeature {
 	private final Transaction transaction;
 
 	private FeatureWriter<SimpleFeatureType, SimpleFeature> fw = null;
-	private FeatureReader<SimpleFeatureType, SimpleFeature> fr = null;
+//	private FeatureReader<SimpleFeatureType, SimpleFeature> fr = null;
 
 	public SimpleFeatureUpdaterReader(ContentEntry entry, final Query query,
 			final CacheManager cacheManager) throws IOException {
@@ -38,15 +38,15 @@ public class SimpleFeatureUpdaterReader extends DelegateSimpleFeature {
 			throws IOException {
 
 		super(cacheManager);
-		
+
 		this.entry = entry;
-		
+
 		this.transaction = transaction;
 
-		fw = cacheManager.getCache().getFeatureWriter(query.getTypeName(),query.getFilter(),
-				transaction);
-		fr = cacheManager.getCache().getFeatureReader(query,
-				transaction);
+		fw = cacheManager.getCache().getFeatureWriter(query.getTypeName(),
+				query.getFilter(), transaction);
+		// fr = cacheManager.getCache().getFeatureReader(query,
+		// transaction);
 
 	}
 
@@ -58,21 +58,22 @@ public class SimpleFeatureUpdaterReader extends DelegateSimpleFeature {
 	@Override
 	protected SimpleFeature getNextInternal() throws IllegalArgumentException,
 			NoSuchElementException, IOException {
-		fr.next();
+		// fr.next();
 		return fw.next();
 	}
+
 	@Override
 	public SimpleFeature next() throws IOException, IllegalArgumentException,
 			NoSuchElementException {
-		final SimpleFeature df = super.next(); 
+		final SimpleFeature df = super.next();
 		fw.write();
 		return df;
 	}
 
 	@Override
 	public boolean hasNext() throws IOException {
-//		return fw.hasNext();
-		return fr.hasNext();
+		return fw.hasNext();
+		// return fr.hasNext();
 	}
 
 	@Override
@@ -83,12 +84,12 @@ public class SimpleFeatureUpdaterReader extends DelegateSimpleFeature {
 			} catch (IOException e) {
 			}
 		}
-		if (fr != null) {
-			try {
-				fr.close();
-			} catch (IOException e) {
-			}
-		}
+//		if (fr != null) {
+//			try {
+//				fr.close();
+//			} catch (IOException e) {
+//			}
+//		}
 	}
 
 }
