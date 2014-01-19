@@ -61,46 +61,6 @@ public class SchemaOp extends BaseSchemaOp<Name> {
         return cacheManager.getCache().getSchema(o);
     }
 
-    //
-    // @Override
-    // public Collection<Property> enrich(Feature sourceF, Feature destinationF) throws IOException {
-    // final Collection<Property> props = destinationF.getProperties();
-    // final Map<Name, Property> sourceMap = new HashMap<Name, Property>();
-    // for (Property p : sourceF.getValue()) {
-    // sourceMap.put(p.getName(), p);
-    // }
-    // for (Property p : props) {
-    // if (p.getName().getLocalPart().equalsIgnoreCase(HINTS_NAME)) {
-    // final Class c = p.getType().getBinding();
-    // if (c.isAssignableFrom(SimpleSchema.LONG.getBinding())) {
-    // Long oldValue = (Long) SimpleSchema.LONG.getBinding().cast(p.getValue());
-    // p.setValue(oldValue != null ? ++oldValue : 0);
-    // } else {
-    // throw new IOException("Unable to enrich this feature: wrong binding class ("
-    // + c + ") for property: " + p.getName());
-    // }
-    // } else if (p.getName().getLocalPart().equalsIgnoreCase(TIMESTAMP_NAME)) {
-    // final Class c = p.getType().getBinding();
-    // if (c.isAssignableFrom(SimpleSchema.DATETIME.getBinding())) {
-    // p.setValue(new Timestamp(Calendar.getInstance().getTimeInMillis()));
-    // } else {
-    // throw new IOException("Unable to enrich this feature: wrong binding class ("
-    // + c + ") for property: " + p.getName());
-    // }
-    // } else {
-    // final Property newP = sourceMap.get(p.getName());
-    // if (newP != null) {
-    // p.setValue(newP.getValue());
-    // } else {
-    // if (LOGGER.isLoggable(Level.WARNING)) {
-    // LOGGER.warning("Skipping not found property named: " + p.getName());
-    // }
-    // }
-    // }
-    // }
-    // return props;
-    // }
-
     @Override
     public boolean isDirty(Name key) throws IOException {
         return false;

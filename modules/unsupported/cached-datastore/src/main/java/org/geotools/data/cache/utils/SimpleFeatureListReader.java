@@ -5,44 +5,35 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 
-import org.geotools.data.FeatureReader;
-import org.geotools.data.simple.SimpleFeatureReader;
+import org.geotools.data.cache.op.CacheManager;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
 
-public class SimpleFeatureListReader implements SimpleFeatureReader {
+public class SimpleFeatureListReader extends DelegateSimpleFeatureReader {
 
-    private final Iterator<SimpleFeature> it;
+	private final Iterator<SimpleFeature> it;
 
-    private final List<SimpleFeature> collection;
+	public SimpleFeatureListReader(CacheManager cacheManager,
+			SimpleFeatureType schema, List<SimpleFeature> coll)
+			throws IOException {
+		super(cacheManager, schema);
+		it = coll.iterator();
+	}
 
-    private final SimpleFeatureType schema;
+	@Override
+	public SimpleFeature getNextInternal() throws IOException,
+			IllegalArgumentException, NoSuchElementException {
+		return it.next();
+	}
 
-    public SimpleFeatureListReader(List<SimpleFeature> coll, SimpleFeatureType schema) {
-        this.collection = coll;
-        this.it = coll.iterator();
-        this.schema = schema;
-    }
+	@Override
+	public boolean hasNext() throws IOException {
+		return it.hasNext();
+	}
 
-    @Override
-    public SimpleFeatureType getFeatureType() {
-        return schema;
-    }
-
-    @Override
-    public SimpleFeature next() throws IOException, IllegalArgumentException,
-            NoSuchElementException {
-        return it.next();
-    }
-
-    @Override
-    public boolean hasNext() throws IOException {
-        return it.hasNext();
-    }
-
-    @Override
-    public void close() throws IOException {
-        // do nothing
-    }
+	@Override
+	public void close() throws IOException {
+		// do nothing
+	}
 
 }
