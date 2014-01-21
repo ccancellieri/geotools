@@ -13,9 +13,7 @@ import org.opengis.feature.type.Name;
 
 public class SchemaOp extends BaseSchemaOp<Name> {
 
-    // final Map<Name,SimpleFeatureType> schemas=new HashMap<Name, SimpleFeatureType>();
-
-    public SchemaOp(CacheManager cacheManager, final String uniqueName) {
+    public SchemaOp(CacheManager cacheManager, final String uniqueName) throws IOException {
         super(cacheManager, uniqueName);
     }
 

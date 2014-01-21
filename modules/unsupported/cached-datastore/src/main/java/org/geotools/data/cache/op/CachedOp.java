@@ -10,7 +10,7 @@ import java.io.Serializable;
  * @param <T> The type returned by the cachedOp(eration)
  * @param <K> the type used to check if the operation has cached a specific call
  */
-public interface CachedOp<T, K> {
+public interface  CachedOp<T, K> {
 
     /**
      * @return a string representing the status of this cachedOp object (note: this should be loadable by the {@link #load(String)} method)
@@ -22,8 +22,11 @@ public interface CachedOp<T, K> {
      * load the status of this cachedOp using the input Serializable (if needed) to setup accordingly the status of this object
      * 
      * @param obj the status to load
+     * @return TODO
      */
-    public void load(Serializable obj) throws IOException;
+    public <E extends CachedOp<T, K>> E load(Serializable uuid) throws IOException;
+    
+    public <E extends CachedOp<T, K>> void clone(E obj) throws IOException;
 
     /**
      * clear the status of this cachedOp

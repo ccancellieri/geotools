@@ -1,11 +1,14 @@
 package org.geotools.data.cache.op;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
+import java.util.Map.Entry;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.logging.Level;
@@ -19,7 +22,7 @@ import org.springframework.cache.Cache.ValueWrapper;
  * @author Carlo Cancellieri - GeoSolutions SAS
  * 
  */
-public class CacheStatus {
+class CacheStatus {
 
     public static final String CACHEMANAGER_STORE_NAME = "CacheManagerStatus";
 
@@ -30,10 +33,10 @@ public class CacheStatus {
     private final transient Logger LOGGER = org.geotools.util.logging.Logging.getLogger(getClass()
             .getPackage().getName());
 
-    private final transient ReadWriteLock cachedOpMapLock = new ReentrantReadWriteLock();
-
     // operations
-    private final transient Map<Operation, CachedOp<?, ?>> cachedOpMap = new HashMap<Operation, CachedOp<?, ?>>();
+    private final transient ReadWriteLock cachedOpSPIMapLock = new ReentrantReadWriteLock();
+
+    private final transient Map<Operation, CachedOpSPI<?>> cachedOpSPIMap = new HashMap<Operation, CachedOpSPI<?>>();
 
     // name for the operations map storage
     private final String uid;
@@ -44,72 +47,175 @@ public class CacheStatus {
                     "Unable to create the cache status with null or empty uid");
 
         this.uid = uid;
+
+        // try to restore from a previous status
+        load();
     }
 
     public String getUID() {
         return this.uid;
     }
 
-    public Set<Operation> getCachedOpKeys() {
+    Set<Operation> getCachedOpKeys() {
         try {
-            this.cachedOpMapLock.readLock().lock();
-            return cachedOpMap.keySet();
+            this.cachedOpSPIMapLock.readLock().lock();
+            return cachedOpSPIMap.keySet();
         } finally {
-            this.cachedOpMapLock.readLock().unlock();
+            this.cachedOpSPIMapLock.readLock().unlock();
         }
     }
 
-    public CachedOp<?, ?> getCachedOp(CachedOpSPI<?> op) {
+    Collection<CachedOpSPI<?>> getCachedOps() {
         try {
-            this.cachedOpMapLock.readLock().lock();
-            return (CachedOp<?, ?>) cachedOpMap.get(op);
+            this.cachedOpSPIMapLock.readLock().lock();
+            return cachedOpSPIMap.values();
         } finally {
-            this.cachedOpMapLock.readLock().unlock();
+            this.cachedOpSPIMapLock.readLock().unlock();
         }
     }
 
     /**
-     * @see {@link CachedOpSPI#hashCode()}
-     * @param op
+     * set the new spi collection comparing the stored set of SPI with the passed one and returning a collection of operation which are changed (this
+     * should be used to clear the matching cachedOp before a new one is created into the CacheManager)
+     * 
+     * @param spiColl
      * @return
      */
-    public CachedOp<?, ?> getCachedOp(Operation op) {
+    Collection<Operation> setCachedOpSPI(Collection<CachedOpSPI<?>> spiColl) {
+        final List<Operation> returns = new ArrayList<Operation>();
         try {
-            this.cachedOpMapLock.readLock().lock();
-            return (CachedOp<?, ?>) cachedOpMap.get(op);
+            this.cachedOpSPIMapLock.writeLock().lock();
+
+            // for each selected SPI changes
+            final Iterator<CachedOpSPI<?>> it = spiColl.iterator();
+            while (it.hasNext()) {
+                final CachedOpSPI<?> selectedOpSPI = it.next();
+                // check stored to compare with selected SPI
+                if (cachedOpSPIMap.containsKey(selectedOpSPI.getOp())) {
+                    final CachedOpSPI<?> storedOpSPI = cachedOpSPIMap.get(selectedOpSPI.getOp());
+                    if (selectedOpSPI.getOp().equals(storedOpSPI.getOp())) {
+                        // if stored is equals with the selected no change is required
+                        if (!selectedOpSPI.equals(storedOpSPI)) {
+                            // substitute the the stored operation with the new one
+                            cachedOpSPIMap.put(selectedOpSPI.getOp(), selectedOpSPI);
+                            // add the operation to the return list
+                            returns.add(storedOpSPI.getOp());
+                        }
+                    }
+                } else {
+                    // the selected SPI is not present into the store map, let's add it
+                    cachedOpSPIMap.put(selectedOpSPI.getOp(), selectedOpSPI);
+                }
+            }
+
+            // now some SPI into the cachedOpSPIMap may be absent into the selection (unselected)
+            // lets remove them from the stored map adding them to the returns list.
+            final Iterator<Entry<Operation, CachedOpSPI<?>>> it3 = cachedOpSPIMap.entrySet()
+                    .iterator();
+            while (it3.hasNext()) {
+                final Entry<Operation, CachedOpSPI<?>> entry = it3.next();
+                final Operation op = entry.getKey();
+                // if the selected operationSPI collection does not contains some SPI in the stored map
+                boolean found = false;
+                final Iterator<CachedOpSPI<?>> it4 = spiColl.iterator();
+                while (it4.hasNext()) {
+                    final CachedOpSPI<?> selectedOpSPI = it4.next();
+                    if (selectedOpSPI.getOp().equals(op)) {
+                        found = true;
+                        continue;
+                    }
+                }
+                if (!found) {
+                    // add to the change list
+                    returns.add(op);
+                    // remove from the store
+                    it3.remove();
+                }
+            }
+
+            // final Iterator<Entry<Operation, CachedOpSPI<?>>> it2 = cachedOpSPIMap.entrySet()
+            // .iterator();
+            // while (it2.hasNext()) {
+            // final Entry<Operation, CachedOpSPI<?>> op = it2.next();
+            // final CachedOpSPI<?> storedOpSPI = op.getValue();
+            // // for the same operation
+            // if (selectedOpSPI.getOp().equals(storedOpSPI.getOp())) {
+            // // if stored is equals with the selected no change is required
+            // if (selectedOpSPI.equals(storedOpSPI)) {
+            // continue;
+            // } else {
+            // // substitute the the stored operation with the new one
+            // op.setValue(selectedOpSPI);
+            // // add the operation to the return list
+            // returns.add(storedOpSPI.getOp());
+            // }
+            // // remove from changes list
+            // it.remove();
+            // break;
+            // }
+            // }
+            // }
+
+ 
+
+            // now add remaining selected SPI
+//            for (CachedOpSPI<?> spi : spiColl) {
+//
+//            }
         } finally {
-            this.cachedOpMapLock.readLock().unlock();
+            this.cachedOpSPIMapLock.writeLock().unlock();
+        }
+        return returns;
+    }
+
+    CachedOpSPI<?> getCachedOpSPI(CachedOpSPI<?> op) {
+        try {
+            this.cachedOpSPIMapLock.readLock().lock();
+            return cachedOpSPIMap.get(op);
+        } finally {
+            this.cachedOpSPIMapLock.readLock().unlock();
         }
     }
 
-    public void putCachedOp(Operation op, CachedOp<?, ?> cachedOp) {
-        try {
-            this.cachedOpMapLock.writeLock().lock();
-            cachedOpMap.put(op, cachedOp);
-        } finally {
-            this.cachedOpMapLock.writeLock().unlock();
+    /**
+     * loads the cachedOpSPIMap status from the ehcache
+     */
+    void load() {
+        final ValueWrapper cachedStatus = ehcache.get(getUID());
+        if (cachedStatus != null) {
+            this.cachedOpSPIMap.putAll((Map<Operation, CachedOpSPI<?>>) cachedStatus.get());
+        } else {
+            if (LOGGER.isLoggable(Level.WARNING)) {
+                LOGGER.log(Level.WARNING, "No entry load from cache for key: " + getUID());
+            }
         }
     }
 
-    // public void putCachedOp(CachedOpSPI<CachedOp<?, ?>> spi, CachedOp<?, ?> cachedOp) {
+    // public void putCachedOp(CachedOpSPI<?> spi, CachedOp<?, ?> cachedOp) {
     // try {
     // this.cachedOpMapLock.writeLock().lock();
-    // cachedOpMap.put(spi, cachedOp);
+    // cachedOpMap.put(spi.getOp(), cachedOp);
+    // } finally {
+    // this.cachedOpMapLock.writeLock().unlock();
+    // }
+    // try {
+    // this.cachedOpSPIMapLock.writeLock().lock();
+    // cachedOpSPIMap.put(spi.getOp(),spi);
+    // } finally {
+    // this.cachedOpSPIMapLock.writeLock().unlock();
+    // }
+    // }
+
+    // private void putAllCachedOp(Map<Operation, CachedOp<?, ?>> all) {
+    // try {
+    // this.cachedOpMapLock.writeLock().lock();
+    // for (Entry<Operation, CachedOp<?, ?>> e : all.entrySet()) {
+    // cachedOpMap.put(e.getKey(), e.getValue());
+    // }
     // } finally {
     // this.cachedOpMapLock.writeLock().unlock();
     // }
     // }
-
-    public void putAllCachedOp(Map<Operation, CachedOp<?, ?>> all) {
-        try {
-            this.cachedOpMapLock.writeLock().lock();
-            for (Entry<Operation, CachedOp<?, ?>> e : all.entrySet()) {
-                cachedOpMap.put(e.getKey(), e.getValue());
-            }
-        } finally {
-            this.cachedOpMapLock.writeLock().unlock();
-        }
-    }
 
     // public void putAllCachedOp(Map<CachedOpSPI<CachedOp<?, ?>>, CachedOp<?, ?>> all) {
     // try {
@@ -127,94 +233,22 @@ public class CacheStatus {
      * 
      * @throws IOException
      */
-    public void save() throws IOException {
+    void save() throws IOException {
         try {
-            this.cachedOpMapLock.writeLock().lock();
-            // recursive save
-            for (CachedOp<?, ?> op : cachedOpMap.values()) {
-                op.save();
-            }
-            // store SPI set into the cache
-            ehcache.put(uid, this.cachedOpMap.keySet());
+            this.cachedOpSPIMapLock.readLock().lock();
+            // store the set into the cache
+            ehcache.put(uid, cachedOpSPIMap);
         } finally {
-            this.cachedOpMapLock.writeLock().unlock();
+            this.cachedOpSPIMapLock.readLock().unlock();
         }
     }
 
     /**
      * clear the cache status and all of the sub caches
      */
-    public void clear() throws IOException {
-        try {
-            this.cachedOpMapLock.writeLock().lock();
-            // recursively clear
-            for (CachedOp<?, ?> op : cachedOpMap.values()) {
-                op.clear();
-            }
-            // clear
-            this.cachedOpMap.clear();
-        } finally {
-            this.cachedOpMapLock.writeLock().unlock();
-        }
+    void clear() throws IOException {
         // evict
-        ehcache.evict(getUID());
-    }
-
-    /**
-     * loads the cacheMap from the ehcache
-     * 
-     * @throws IOException
-     */
-    public void load(final CacheManager cacheManager) {
-        if (cacheManager == null)
-            throw new IllegalArgumentException(
-                    "Unable to load the Status using a null cache manager");
-        try {
-            this.cachedOpMapLock.writeLock().lock();
-            final ValueWrapper cachedSet = ehcache.get(getUID());
-            if (cachedSet != null) {
-                final Set<CachedOpSPI<CachedOp<?, ?>>> spiSet = (Set<CachedOpSPI<CachedOp<?, ?>>>) cachedSet
-                        .get();
-                // recursive load
-                for (Iterator<CachedOpSPI<CachedOp<?, ?>>> spiIt = spiSet.iterator(); spiIt
-                        .hasNext();) {
-                    CachedOpSPI<CachedOp<?, ?>> spi = spiIt.next();
-                    try {
-                        loadOp(cacheManager, spi);
-                    } catch (IOException e) {
-                        LOGGER.log(Level.FINER, e.getMessage(), e);
-                    }
-                }
-            } else {
-                if (LOGGER.isLoggable(Level.WARNING)) {
-                    LOGGER.log(Level.WARNING, "No entry load from cache for key: " + getUID());
-                }
-            }
-        } finally {
-            // release the write lock
-            this.cachedOpMapLock.writeLock().unlock();
-        }
-    }
-
-    /**
-     * Initialize and load a single operation using the passed SPI
-     * 
-     * @param source
-     * @param cache
-     * @param cacheManager
-     * @param spi
-     * @throws IOException if fails to create the CachedOp
-     */
-    public void loadOp(final CacheManager cacheManager, CachedOpSPI<CachedOp<?, ?>> spi)
-            throws IOException {
-        if (cacheManager == null || spi == null)
-            throw new IllegalArgumentException(
-                    "Unable to load an operation using a null cache manager or a null spi");
-        final CachedOp<?, ?> op = spi.create(cacheManager, createCachedOpUID(spi.getOp()));
-        // load op
-        op.load(null);
-
-        cachedOpMap.put(spi.getOp(), op);
+        ehcache.evict(uid);
     }
 
     /**
@@ -224,24 +258,6 @@ public class CacheStatus {
      * @throws IOException
      */
     public void dispose() throws IOException {
-        
-        try {
-            this.cachedOpMapLock.readLock().lock();
-            if (this.cachedOpMap != null) {
-                for (CachedOp<?, ?> op : cachedOpMap.values()) {
-                    op.dispose();
-                }
-            }
-        } finally {
-            this.cachedOpMapLock.readLock().unlock();
-        }
-        
-        // save status
-        save();
-    }
-
-    public String createCachedOpUID(Operation op) {
-        return new StringBuilder(op.toString()).append(':').append(uid).toString();
     }
 
 }

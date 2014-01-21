@@ -8,7 +8,7 @@ import org.opengis.feature.type.Name;
 
 public class TypeNamesOp extends BaseOp<List<Name>, String> {
 
-    public TypeNamesOp(CacheManager cacheManager, final String uniqueName) {
+    public TypeNamesOp(CacheManager cacheManager, final String uniqueName) throws IOException {
         super(cacheManager, uniqueName);
     }
 

@@ -26,7 +26,6 @@ public class SimpleFeatureUpdaterReader extends DelegateSimpleFeature {
 	private final Transaction transaction;
 
 	private FeatureWriter<SimpleFeatureType, SimpleFeature> fw = null;
-//	private FeatureReader<SimpleFeatureType, SimpleFeature> fr = null;
 
 	public SimpleFeatureUpdaterReader(ContentEntry entry, final Query query,
 			final CacheManager cacheManager) throws IOException {
@@ -45,8 +44,6 @@ public class SimpleFeatureUpdaterReader extends DelegateSimpleFeature {
 
 		fw = cacheManager.getCache().getFeatureWriter(query.getTypeName(),
 				query.getFilter(), transaction);
-		// fr = cacheManager.getCache().getFeatureReader(query,
-		// transaction);
 
 	}
 
@@ -58,7 +55,6 @@ public class SimpleFeatureUpdaterReader extends DelegateSimpleFeature {
 	@Override
 	protected SimpleFeature getNextInternal() throws IllegalArgumentException,
 			NoSuchElementException, IOException {
-		// fr.next();
 		return fw.next();
 	}
 
@@ -73,7 +69,6 @@ public class SimpleFeatureUpdaterReader extends DelegateSimpleFeature {
 	@Override
 	public boolean hasNext() throws IOException {
 		return fw.hasNext();
-		// return fr.hasNext();
 	}
 
 	@Override
@@ -84,12 +79,6 @@ public class SimpleFeatureUpdaterReader extends DelegateSimpleFeature {
 			} catch (IOException e) {
 			}
 		}
-//		if (fr != null) {
-//			try {
-//				fr.close();
-//			} catch (IOException e) {
-//			}
-//		}
 	}
 
 }

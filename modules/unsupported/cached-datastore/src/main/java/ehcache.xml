@@ -19,16 +19,16 @@
 		diskExpiryThreadIntervalSeconds="120" memoryStoreEvictionPolicy="LRU" />
 
 	<!-- FeatureSourceOp implementation -->
-	<cache name="featureSource" maxElementsInMemory="100" eternal="true"
-		timeToIdleSeconds="120" timeToLiveSeconds="120" overflowToDisk="true"
-		maxElementsOnDisk="10000000" diskPersistent="false"
-		diskExpiryThreadIntervalSeconds="120" memoryStoreEvictionPolicy="LRU" />
+<!-- 	<cache name="featureSource" maxElementsInMemory="100" eternal="true" -->
+<!-- 		timeToIdleSeconds="120" timeToLiveSeconds="120" overflowToDisk="true" -->
+<!-- 		maxElementsOnDisk="10000000" diskPersistent="false" -->
+<!-- 		diskExpiryThreadIntervalSeconds="120" memoryStoreEvictionPolicy="LRU" /> -->
 
 	<!-- FeatureCountOp implementation -->
-	<cache name="featureCount" maxElementsInMemory="100" eternal="true"
-		timeToIdleSeconds="120" timeToLiveSeconds="120" overflowToDisk="true"
-		maxElementsOnDisk="10000000" diskPersistent="false"
-		diskExpiryThreadIntervalSeconds="120" memoryStoreEvictionPolicy="LRU" />
+<!-- 	<cache name="featureCount" maxElementsInMemory="100" eternal="true" -->
+<!-- 		timeToIdleSeconds="120" timeToLiveSeconds="120" overflowToDisk="true" -->
+<!-- 		maxElementsOnDisk="10000000" diskPersistent="false" -->
+<!-- 		diskExpiryThreadIntervalSeconds="120" memoryStoreEvictionPolicy="LRU" /> -->
 
 	<!-- DEFAULT -->
 	<defaultCache name="defaut" maxElementsInMemory="5"

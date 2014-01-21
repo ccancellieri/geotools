@@ -6,6 +6,8 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import org.geotools.data.DataAccessFactory.Param;
 import org.geotools.data.cache.op.CachedOpSPI;
@@ -18,6 +20,10 @@ import org.opengis.util.InternationalString;
  */
 public class CachedOpSPIMapParam extends Param {
 
+
+    protected final static transient Logger LOGGER = org.geotools.util.logging.Logging
+            .getLogger("org.geotools.data.cache.utils.CachedOpSPIMapParam");
+    
     public CachedOpSPIMapParam(String arg0) {
         super(arg0);
     }
@@ -59,19 +65,26 @@ public class CachedOpSPIMapParam extends Param {
     }
 
     @Override
-    public Object parse(String text) throws IOException, InstantiationException,
-            IllegalAccessException, ClassNotFoundException {
+    public Object parse(String text) {
         return parseSPIMap(text);
     }
 
-    public static Map<String, CachedOpSPI<?>> parseSPIMap(String text)
-            throws InstantiationException, IllegalAccessException, ClassNotFoundException {
+    public static Map<String, CachedOpSPI<?>> parseSPIMap(String text)  {
         final Map<String, CachedOpSPI<?>> output = new HashMap<String, CachedOpSPI<?>>();
         text = text.substring(1, text.length() - 1);
         for (String pair : text.split(",")) {
             final String[] kv = pair.split("=");
-            final CachedOpSPI<?> spi = (CachedOpSPI<?>) Class.forName(kv[1].trim()).newInstance();
-            output.put(kv[0].trim(), spi);
+            CachedOpSPI<?> spi;
+            try {
+                spi = (CachedOpSPI<?>) Class.forName(kv[1].trim()).newInstance();
+                output.put(kv[0].trim(), spi);
+            } catch (InstantiationException e) {
+                LOGGER.log(Level.SEVERE, e.getMessage(), e);
+            } catch (IllegalAccessException e) {
+                LOGGER.log(Level.SEVERE, e.getMessage(), e);
+            } catch (ClassNotFoundException e) {
+                LOGGER.log(Level.SEVERE, e.getMessage(), e);
+            }
         }
         return output;
     }

@@ -20,7 +20,6 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 
 import org.geotools.data.AbstractDataStoreFactory;
@@ -29,8 +28,8 @@ import org.geotools.data.DataAccessFactory;
 import org.geotools.data.DataAccessFinder;
 import org.geotools.data.DataStore;
 import org.geotools.data.DataStoreFactorySpi;
+import org.geotools.data.cache.op.BaseOp;
 import org.geotools.data.cache.op.CacheManager;
-import org.geotools.data.cache.op.CachedOp;
 import org.geotools.data.cache.op.CachedOpSPI;
 import org.geotools.data.cache.utils.CachedOpSPIMapParam;
 import org.geotools.data.cache.utils.MapParam;
@@ -81,11 +80,12 @@ public class CachedDataStoreFactory extends AbstractDataStoreFactory implements 
 
     public static final Param CACHE_PARAMS = new MapParam(CACHE_PARAMS_KEY, Map.class,
             "The target data store to cache", true, null, new KVP(Param.ELEMENT, Param.class));
-    
+
     public static final String CACHEDOPSPI_PARAMS_KEY = "CachedOpParams";
-    
-    public static final Param CACHEDOPSPI_PARAMS = new CachedOpSPIMapParam(CACHEDOPSPI_PARAMS_KEY, Map.class,
-            "The Map of SPI to use for Cached Operations", true, null, new KVP(Param.ELEMENT, Param.class));
+
+    public static final Param CACHEDOPSPI_PARAMS = new CachedOpSPIMapParam(CACHEDOPSPI_PARAMS_KEY,
+            Map.class, "The Map of SPI to use for Cached Operations", true, null, new KVP(
+                    Param.ELEMENT, Param.class));
 
     // public static final String CACHE_MANAGER_KEY = "CacheManager";
 
@@ -109,7 +109,8 @@ public class CachedDataStoreFactory extends AbstractDataStoreFactory implements 
     }
 
     public Param[] getParametersInfo() {
-        return new Param[] { NAME, NAMESPACE, SOURCE_TYPE, SOURCE_PARAMS, CACHE_TYPE, CACHE_PARAMS, CACHEDOPSPI_PARAMS };
+        return new Param[] { NAME, NAMESPACE, SOURCE_TYPE, SOURCE_PARAMS, CACHE_TYPE, CACHE_PARAMS,
+                CACHEDOPSPI_PARAMS };
     }
 
     public boolean isAvailable() {
@@ -143,30 +144,31 @@ public class CachedDataStoreFactory extends AbstractDataStoreFactory implements 
         final Map<String, Serializable> cacheParams = lookup(CACHE_PARAMS, params, Map.class);
 
         final DataStore cache = (DataStore) getDataStore(cacheParams, cacheType);
-        
-        final CacheManager cacheManager = new CacheManager(source, cache, createDataStoreUID(params));
-        
-        final Map<String, CachedOpSPI<CachedOp<?, ?>>> spiParams = lookup(CACHEDOPSPI_PARAMS, params, Map.class);
-        
-        cacheManager.load(spiParams.values());
-        
 
-//        if (cache == null) {
-//            CachedOpSPI<?> spi = new STRFeatureSourceOpSPI();
-//            props.putCachedOp(spi,
-//                    spi.create(source, null, props, props.createCachedOpUID(spi.getOp())));
-//            // cache = new SpringCachedDataStore(source);
-//            // manager = new CacheManagerOld<DataStore>(cache);
-//            // manager.setAllPolicy(CacheOp.values(), true);
-//            return new CachedDataStore(props);
-//        }
+        final CacheManager cacheManager = new CacheManager(source, cache,
+                createDataStoreUID(params));
+
+        final Map<String, CachedOpSPI<?>> spiParams = lookup(CACHEDOPSPI_PARAMS, params,
+                Map.class);
+
+        cacheManager.setStatus(spiParams.values());
+
+        // if (cache == null) {
+        // CachedOpSPI<?> spi = new STRFeatureSourceOpSPI();
+        // props.putCachedOp(spi,
+        // spi.create(source, null, props, props.createCachedOpUID(spi.getOp())));
+        // // cache = new SpringCachedDataStore(source);
+        // // manager = new CacheManagerOld<DataStore>(cache);
+        // // manager.setAllPolicy(CacheOp.values(), true);
+        // return new CachedDataStore(props);
+        // }
 
         return new CachedDataStore(cacheManager);
     }
 
     public static String createDataStoreUID(Map<String, Serializable> params) throws IOException {
-        return new StringBuilder(lookup(NAMESPACE, params, String.class)).append(':').append(
-                lookup(NAME, params, String.class)).toString();
+        return new StringBuilder(lookup(NAMESPACE, params, String.class)).append(':')
+                .append(lookup(NAME, params, String.class)).toString();
     }
 
     /**
