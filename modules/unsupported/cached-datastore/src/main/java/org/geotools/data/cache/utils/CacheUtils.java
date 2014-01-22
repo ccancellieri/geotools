@@ -1,10 +1,14 @@
 package org.geotools.data.cache.utils;
 
+import java.io.Serializable;
+import java.io.StringWriter;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
+import java.util.Map.Entry;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -68,9 +72,39 @@ public class CacheUtils implements ApplicationContextAware {
         input = input.substring(1, input.length() - 1);
         for (String pair : input.split(",")) {
             String[] kv = pair.split("=");
-            map.put(kv[0].trim(), kv[1].trim());
+            if (kv.length == 2 && kv[0] != null && !kv[0].isEmpty() && kv[1] != null
+                    && !kv[1].isEmpty()) {
+                map.put(kv[0].trim(), kv[1].trim());
+            }
         }
         return map;
+    }
+
+    public static <T> String toText(Map<String, T> value) {
+        if (value == null)
+            throw new IllegalArgumentException("Unable to convert a null map");
+        final StringWriter sw = new StringWriter();
+        sw.write('{');
+        final Iterator<Entry<String, T>> it = value.entrySet().iterator();
+        if (it.hasNext()) {
+            Entry<String, T> e = it.next();
+            if (e.getValue() != null) {
+                sw.write(e.getKey().trim());
+                sw.write('=');
+                sw.write(e.getValue().toString().trim());
+            }
+        }
+        while (it.hasNext()) {
+            Entry<String, T> e = it.next();
+            if (e.getValue() != null) {
+                sw.write(',');
+                sw.write(e.getKey().trim());
+                sw.write('=');
+                sw.write(e.getValue().toString().trim());
+            }
+        }
+        sw.write('}');
+        return sw.toString();
     }
 
     //

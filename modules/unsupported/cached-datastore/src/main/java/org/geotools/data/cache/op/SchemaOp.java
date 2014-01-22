@@ -17,40 +17,20 @@ public class SchemaOp extends BaseSchemaOp<Name> {
         super(cacheManager, uniqueName);
     }
 
-    public static String TIMESTAMP_NAME = "TimeStamp";
-
-    public static String HINTS_NAME = "Hints";
-
     @Override
     public SimpleFeatureType updateCache(Name name) throws IOException {
 
         verify(name);
 
-        final SimpleFeatureTypeBuilder b = new SimpleFeatureTypeBuilder();
-
         SimpleFeatureType schema = cacheManager.getSource().getSchema(name);
 
-        // initialize the builder
-        b.init(schema);
-
-        // add TIMESTAMP
-        b.add(new AttributeDescriptorImpl(SimpleSchema.DATETIME, new NameImpl(TIMESTAMP_NAME), 1,
-                1, false, new Timestamp(Calendar.getInstance().getTimeInMillis())));
-
-        // cache hits
-        b.add(new AttributeDescriptorImpl(SimpleSchema.LONG, new NameImpl(HINTS_NAME), 1, 1, false,
-                0));
-
-        final SimpleFeatureType newSchema = b.buildFeatureType();
-
-        if (isCached(name)) {
-            // cache.createSchema(SimpleFeatureTypeBuilder.copy(store.getSchema(name)));
-            cacheManager.getCache().updateSchema(name, newSchema);
+        if (isDirty(name)) {
+            cacheManager.getCache().updateSchema(name, schema);
         } else {
-            cacheManager.getCache().createSchema(newSchema);
+            cacheManager.getCache().createSchema(schema);
         }
 
-        return newSchema;
+        return schema;
     }
 
     @Override
