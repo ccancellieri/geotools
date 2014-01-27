@@ -2,18 +2,11 @@ package org.geotools.data.cache.utils;
 
 import java.io.IOException;
 import java.util.NoSuchElementException;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
-import org.geotools.data.FeatureReader;
 import org.geotools.data.FeatureWriter;
 import org.geotools.data.Query;
 import org.geotools.data.Transaction;
 import org.geotools.data.cache.op.CacheManager;
-import org.geotools.data.cache.op.NextOp;
-import org.geotools.data.cache.op.Operation;
-import org.geotools.data.cache.op.SchemaOp;
-import org.geotools.data.simple.SimpleFeatureReader;
 import org.geotools.data.store.ContentEntry;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
