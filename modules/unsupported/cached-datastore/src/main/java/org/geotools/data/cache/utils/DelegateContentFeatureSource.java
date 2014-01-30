@@ -67,7 +67,6 @@ public class DelegateContentFeatureSource extends ContentFeatureSource {
             try {
                 if (!op.isCached(query) || op.isDirty(query)) {
                     env = op.updateCache(query);
-                    op.setCached(query, env != null ? true : false);
                 } else {
                     env = op.getCache(query);
                 }
@@ -96,7 +95,6 @@ public class DelegateContentFeatureSource extends ContentFeatureSource {
             try {
                 if (!op.isCached(query) || op.isDirty(query)) {
                     count = op.updateCache(query);
-                    op.setCached(query, count != null ? true : false);
                 } else {
                     count = op.getCache(query);
                 }
@@ -156,29 +154,30 @@ public class DelegateContentFeatureSource extends ContentFeatureSource {
         if (op != null) {
             op.setEntry(getEntry());
             op.setSchema(getSchema());
-            try {
-                if (!op.isCached(query) || op.isDirty(query)) {
-
-                    final SimpleFeatureSource source = op.updateCache(query);
-                    if (source != null) {
-                        op.setCached(query, true);
-                        return new SimpleFeatureCollectionReader(cacheManager, getAbsoluteSchema(),
-                                source.getFeatures(query));
-                    } else {
-                        op.setCached(query, false);
-                        throw new IOException(
-                                "Unable to create a simple feature source from the passed query: "
-                                        + query);
-                    }
-                }
-                return new SimpleFeatureCollectionReader(cacheManager, getAbsoluteSchema(), op
-                        .getCache(query).getFeatures());
-            } catch (IOException e) {
-                if (LOGGER.isLoggable(Level.SEVERE)) {
-                    LOGGER.log(Level.SEVERE, e.getLocalizedMessage(), e);
-                }
-                throw e;
-            }
+            return new PipelinedContentFeatureReader(entry, query, cacheManager, op, transaction);
+//            try {
+//                if (!op.isCached(query) || op.isDirty(query)) {
+//
+//                    final SimpleFeatureSource source = op.updateCache(query);
+//                    if (source != null) {
+//                        return new SimpleFeatureCollectionReader(cacheManager, getAbsoluteSchema(),
+//                                source.getFeatures(query));
+//                    } else {
+//                        op.setDirty(query, true);
+//                        throw new IOException(
+//                                "Unable to create a simple feature source from the passed query: "
+//                                        + query);
+//                    }
+//                }
+//                return new SimpleFeatureUpdaterReader(getEntry(), query, cacheManager,
+//                        Transaction.AUTO_COMMIT);// new SimpleFeatureCollectionReader(cacheManager, getAbsoluteSchema(), op
+//                // .getCache(query).getFeatures());
+//            } catch (IOException e) {
+//                if (LOGGER.isLoggable(Level.SEVERE)) {
+//                    LOGGER.log(Level.SEVERE, e.getLocalizedMessage(), e);
+//                }
+//                throw e;
+//            }
         }
         if (LOGGER.isLoggable(Level.WARNING)) {
             LOGGER.log(Level.WARNING, "No cached operation is found: " + Operation.featureSource);
@@ -196,11 +195,11 @@ public class DelegateContentFeatureSource extends ContentFeatureSource {
             try {
                 if (!schemaOp.isCached(name) || schemaOp.isDirty(name)) {
                     schema = schemaOp.updateCache(name);
-                    schemaOp.setCached(name, schema != null ? true : false);
                 } else {
                     schema = schemaOp.getCache(name);
                 }
             } catch (IOException e) {
+                schemaOp.setDirty(name, true);
                 if (LOGGER.isLoggable(Level.SEVERE)) {
                     LOGGER.log(Level.SEVERE, e.getLocalizedMessage(), e);
                 }

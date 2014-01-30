@@ -23,10 +23,6 @@ public class CountOp extends BaseFeatureSourceOp<Integer> {
 
     @Override
     public Integer updateCache(Query query) throws IOException {
-        // pre-calculate query before we call setCache(true) (which will modify
-        // areas!!!)
-        final Query cacheQuery = queryCachedAreas(query);
-        final Query sourceQuery = querySource(query);
 
         final SimpleFeatureSource featureSource = new DelegateContentFeatureSource(cacheManager,
                 getEntry(), query) {
@@ -37,8 +33,8 @@ public class CountOp extends BaseFeatureSourceOp<Integer> {
                 if (isCached(query) && !isDirty(query)) {
                     return cacheManager.getCache().getFeatureReader(query, transaction);
                 } else {
-                    return new PipelinedContentFeatureReader(getEntry(), sourceQuery, cacheQuery,
-                            cacheManager, transaction);
+                    return new PipelinedContentFeatureReader(getEntry(), query, 
+                            cacheManager, CountOp.this, transaction);
                 }
             }
         };

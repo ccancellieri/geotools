@@ -34,9 +34,6 @@ public class FeatureSourceOp extends BaseFeatureSourceOp<SimpleFeatureSource> {
 
     @Override
     public SimpleFeatureSource updateCache(Query query) throws IOException {
-        // pre-calculate query before we call setCache(true) (which will modify areas!!!)
-        final Query cacheQuery = queryCachedAreas(query);
-        final Query sourceQuery = querySource(query);
 
         final SimpleFeatureSource featureSource = new DelegateContentFeatureSource(cacheManager,
                 getEntry(), query) {
@@ -44,11 +41,10 @@ public class FeatureSourceOp extends BaseFeatureSourceOp<SimpleFeatureSource> {
             protected FeatureReader<SimpleFeatureType, SimpleFeature> getReaderInternal(Query query)
                     throws IOException {
 
-                return new PipelinedContentFeatureReader(getEntry(), sourceQuery, cacheQuery,
-                        cacheManager, Transaction.AUTO_COMMIT);
+                return new PipelinedContentFeatureReader(getEntry(), query,
+                        cacheManager, FeatureSourceOp.this, Transaction.AUTO_COMMIT);
             }
         };
         return featureSource;
     }
-
 }

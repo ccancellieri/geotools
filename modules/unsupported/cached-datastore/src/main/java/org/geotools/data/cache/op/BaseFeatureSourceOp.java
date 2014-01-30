@@ -58,24 +58,28 @@ public abstract class BaseFeatureSourceOp<T> extends BaseOp<T, Query> {
     protected Geometry cachedAreas = new Polygon(null, null, JTSFactoryFinder.getGeometryFactory());
 
     // lock on cached areas
-    protected ReadWriteLock lockCachedAreas = new ReentrantReadWriteLock();
+    protected transient ReadWriteLock lockCachedAreas = new ReentrantReadWriteLock();
 
     // used to track dirty areas
     protected Geometry dirtyAreas = new Polygon(null, null, JTSFactoryFinder.getGeometryFactory());
 
     // lock on dirty areas
-    protected ReadWriteLock lockDirtyAreas = new ReentrantReadWriteLock();
+    protected transient ReadWriteLock lockDirtyAreas = new ReentrantReadWriteLock();
 
     // the cached schema
     protected transient SimpleFeatureType schema;
 
-    protected static FilterFactory2 ff = CommonFactoryFinder.getFilterFactory2(null);
+    protected transient static FilterFactory2 ff = CommonFactoryFinder.getFilterFactory2(null);
 
     private static final Set<Class<? extends Filter>> supportedFilterTypes = new HashSet<Class<? extends Filter>>(
             Arrays.asList(BBOX.class, Contains.class, Crosses.class, DWithin.class, Equals.class,
                     Intersects.class, Overlaps.class, Touches.class, Within.class));
 
     private ContentEntry entry;
+
+    public ReadWriteLock getLockCachedAreas() {
+        return lockCachedAreas;
+    }
 
     protected Geometry getCachedAreas() {
         return cachedAreas;
@@ -106,76 +110,115 @@ public abstract class BaseFeatureSourceOp<T> extends BaseOp<T, Query> {
         this.entry = entry;
     }
 
+    private CoordinateReferenceSystem worldCRS;
+
+    private GeometryDescriptor geoDesc;
+
     public void setSchema(SimpleFeatureType schema) {
-        verify(schema);
-        this.schema = schema;
+        if (schema != null) {
+            this.schema = schema;
+            geoDesc = schema.getGeometryDescriptor();
+            if (geoDesc != null) {
+                worldCRS = geoDesc.getCoordinateReferenceSystem();
+            }
+        }
     }
 
     @Override
     public <E extends CachedOp<T, Query>> void clone(E obj) throws IOException {
         final BaseFeatureSourceOp<T> op = (BaseFeatureSourceOp<T>) obj;
-
-        this.cachedAreas = op.cachedAreas;
-        this.lockCachedAreas = op.lockCachedAreas;
-        this.dirtyAreas = op.dirtyAreas;
-        this.lockDirtyAreas = op.lockDirtyAreas;
-        this.schema = op.schema;
-        this.entry = op.entry;
-
-        super.clone(op);
+        if (op != null) {
+            this.cachedAreas = op.cachedAreas;
+            this.lockCachedAreas = op.lockCachedAreas;
+            this.dirtyAreas = op.dirtyAreas;
+            this.lockDirtyAreas = op.lockDirtyAreas;
+            this.setSchema(op.schema);
+            this.entry = op.entry;
+            super.clone(op);
+        }
     }
 
     public BaseFeatureSourceOp(CacheManager cacheManager, final String uid) throws IOException {
         super(cacheManager, uid);
     }
 
-    protected Query queryCachedAreas(final Query query) throws IOException {
-        final Filter[] sF = splitFilters(query);
-        final Envelope env = getEnvelope(sF[1]);
-        final Geometry geom = JTS.toGeometry(env);
-        final CoordinateReferenceSystem targetCRS = query.getCoordinateSystemReproject();
-        if (schema == null)
-            throw new IllegalStateException("You may set the schema to call this method");
+    public Query queryCachedAreas(final Query query) throws IOException {
 
         final Query overQuery;
-        final GeometryDescriptor geoDesc = schema.getGeometryDescriptor();
+
+        MathTransform transform = null;
+        try {
+
+            overQuery = new Query(query.getTypeName());
+
+            try {
+                lockCachedAreas.readLock().lock();
+                if (cachedAreas.isEmpty()) {
+                    // no geometry in cache
+                    overQuery.setFilter(Filter.EXCLUDE);
+                } else {// if (cachedAreas.getNumGeometries() > 0) {
+                    if (worldCRS != null) {
+                        final CoordinateReferenceSystem targetCRS = query
+                                .getCoordinateSystemReproject();
+                        transform = CRS.findMathTransform(worldCRS, targetCRS != null ? targetCRS
+                                : worldCRS);
+                    }
+                    final String geoName = geoDesc.getLocalName();
+
+                    final Filter areaFilter = ff.intersects(ff.property(geoName), ff
+                            .literal(transform != null ? JTS.transform(cachedAreas, transform)
+                                    : cachedAreas));
+                    final Filter dirtyFilter = ff.intersects(ff.property(geoName), ff
+                            .literal(transform != null ? JTS.transform(dirtyAreas, transform)
+                                    : dirtyAreas));
+
+                    final Geometry transformedGeom = getGeometry(query);
+                    if (transformedGeom != null) {
+                        final Filter filter = ff.intersects(ff.property(geoName),
+                                ff.literal(transformedGeom));
+                        overQuery
+                                .setFilter(ff.and(ff.and(filter, areaFilter), ff.not(dirtyFilter)));
+                    } else {
+                        overQuery.setFilter(ff.and(areaFilter, ff.not(dirtyFilter)));
+                    }
+
+                }
+            } finally {
+                lockCachedAreas.readLock().unlock();
+            }
+        } catch (FactoryException e) {
+            throw new IOException(e);
+        } catch (MismatchedDimensionException e) {
+            throw new IOException(e);
+        } catch (TransformException e) {
+            throw new IOException(e);
+        }
+
+        overQuery.setProperties(Query.ALL_PROPERTIES);
+        return overQuery;
+    }
+
+    private Geometry getGeometry(Query query) throws IOException {
+        final Filter[] sF = splitFilters(query);
+        final Envelope env = getEnvelope(sF[1]);
+        if (env.isNull())
+            return null;
+        final Geometry geom = JTS.toGeometry(env);
+
+        if (schema == null)
+            throw new IllegalStateException("You may set the schema before call this method");
+
         if (geoDesc != null) {
-            final CoordinateReferenceSystem worldCRS = geoDesc.getCoordinateReferenceSystem();
             MathTransform transform = null;
             try {
                 if (worldCRS != null) {
+                    final CoordinateReferenceSystem targetCRS = query
+                            .getCoordinateSystemReproject();
                     transform = CRS.findMathTransform(worldCRS, targetCRS != null ? targetCRS
                             : worldCRS);
-                    // } else if (targetCRS != null) {
-                    // transform = CRS.findMathTransform(worldCRS != null ?
-                    // targetCRS : worldCRS, targetCRS);
                 }
-                final String geoName = geoDesc.getLocalName();
+                return transform != null ? JTS.transform(geom, transform) : geom;
 
-                final Geometry transformedGeom = transform != null ? JTS.transform(geom, transform)
-                        : geom;
-
-                overQuery = new Query(query.getTypeName());
-                Filter filter = ff.intersects(ff.property(geoName), ff.literal(transformedGeom));
-
-                Filter areaFilter;
-                if (cachedAreas.getNumGeometries() > 0) {
-                    areaFilter = ff.intersects(ff.property(geoName), ff
-                            .literal(transform != null ? JTS.transform(cachedAreas.getGeometryN(0),
-                                    transform) : cachedAreas.getGeometryN(0)));
-                    for (int i = 1; i < cachedAreas.getNumGeometries(); i++) {
-                        final Geometry transformedCachedGeom = transform != null ? JTS.transform(
-                                cachedAreas.getGeometryN(i), transform) : cachedAreas
-                                .getGeometryN(i);
-                        areaFilter = ff.or(
-                                areaFilter,
-                                ff.intersects(ff.property(geoName),
-                                        ff.literal(transformedCachedGeom)));
-                    }
-                    overQuery.setFilter(ff.and(filter, areaFilter));
-                } else {
-                    overQuery.setFilter(filter);
-                }
             } catch (FactoryException e) {
                 throw new IOException(e);
             } catch (MismatchedDimensionException e) {
@@ -183,12 +226,8 @@ public abstract class BaseFeatureSourceOp<T> extends BaseOp<T, Query> {
             } catch (TransformException e) {
                 throw new IOException(e);
             }
-        } else {
-            overQuery = new Query(query);
         }
-
-        overQuery.setProperties(Query.ALL_PROPERTIES);
-        return overQuery;
+        return null;
     }
 
     /**
@@ -202,90 +241,71 @@ public abstract class BaseFeatureSourceOp<T> extends BaseOp<T, Query> {
      * @throws TransformException
      * @throws MismatchedDimensionException
      */
-    protected Query querySource(final Query query) throws IOException {
-
-        final Filter[] sF = splitFilters(query);
-        final Envelope env = getEnvelope(sF[1]);
-        final Geometry geom = JTS.toGeometry(env);
-
-        final CoordinateReferenceSystem targetCRS = query.getCoordinateSystemReproject();
-        if (schema == null)
-            throw new IllegalStateException("You may set the schema before call this method");
+    public Query querySource(final Query query) throws IOException {
 
         final Query overQuery;
-        final GeometryDescriptor geoDesc = schema.getGeometryDescriptor();
-        if (geoDesc != null) {
-            final CoordinateReferenceSystem worldCRS = geoDesc.getCoordinateReferenceSystem();
-            MathTransform transform = null;
-            try {
-                if (worldCRS != null) {
-                    transform = CRS.findMathTransform(worldCRS, targetCRS != null ? targetCRS
-                            : worldCRS);
-                    // } else if (targetCRS != null) {
-                    // transform = CRS.findMathTransform(worldCRS != null ?
-                    // targetCRS : worldCRS, targetCRS);
-                }
-                final String geoName = geoDesc.getLocalName();
 
-                final Geometry transformedGeom = transform != null ? JTS.transform(geom, transform)
-                        : geom;
-
-                // final Geometry transformedCachedGeom = transform != null ? JTS.transform(
-                // cachedAreas.getBoundary(), transform) : cachedAreas.getBoundary();
-                //
-                // overQuery = new Query(query.getTypeName(), ff.and(
-                // ff.intersects(ff.property(geoName), ff.literal(transformedGeom)),
-                // ff.not(ff.intersects(ff.property(geoName),
-                // ff.literal(transformedCachedGeom)))));
-
-                overQuery = new Query(query.getTypeName());
-                Filter filter = ff.intersects(ff.property(geoName), ff.literal(transformedGeom));
-
-                for (int i = 0; i < cachedAreas.getNumGeometries(); i++) {
-                    final Geometry transformedCachedGeom = transform != null ? JTS.transform(
-                            cachedAreas.getGeometryN(i), transform) : cachedAreas.getGeometryN(i);
-                    filter = ff.and(
-                            filter,
-                            ff.not(ff.intersects(ff.property(geoName),
-                                    ff.literal(transformedCachedGeom))));
-                }
-                overQuery.setFilter(filter);
-
-            } catch (FactoryException e) {
-                throw new IOException(e);
-            } catch (MismatchedDimensionException e) {
-                throw new IOException(e);
-            } catch (TransformException e) {
-                throw new IOException(e);
+        MathTransform transform = null;
+        try {
+            if (worldCRS != null) {
+                final CoordinateReferenceSystem targetCRS = query.getCoordinateSystemReproject();
+                transform = CRS.findMathTransform(worldCRS, targetCRS != null ? targetCRS
+                        : worldCRS);
             }
-        } else {
-            overQuery = new Query(query);
-            overQuery.setProperties(Query.ALL_PROPERTIES);
+            final String geoName = geoDesc.getLocalName();
+            overQuery = new Query(query.getTypeName());
+
+            try {
+                lockCachedAreas.readLock().lock();
+                if (cachedAreas.isEmpty()) {
+                    // no geometry in cache: query for all the geom
+                    overQuery.setFilter(query.getFilter());
+                } else {// if (cachedAreas.getNumGeometries() > 0) {
+
+                    final Filter areaFilter = ff.intersects(ff.property(geoName), ff
+                            .literal(transform != null ? JTS.transform(cachedAreas, transform)
+                                    : cachedAreas));
+                    final Filter dirtyFilter = ff.intersects(ff.property(geoName), ff
+                            .literal(transform != null ? JTS.transform(dirtyAreas, transform)
+                                    : dirtyAreas));
+
+                    final Geometry transformedGeom = getGeometry(query);
+                    if (transformedGeom != null) {
+                        final Filter filter = ff.intersects(ff.property(geoName),
+                                ff.literal(transformedGeom));
+                        overQuery.setFilter(ff.and(ff.or(filter, dirtyFilter), ff.not(areaFilter)));
+                    } else {
+                        overQuery.setFilter(ff.and(dirtyFilter, ff.not(areaFilter)));
+                    }
+                }
+            } finally {
+                lockCachedAreas.readLock().unlock();
+            }
+        } catch (FactoryException e) {
+            throw new IOException(e);
+        } catch (MismatchedDimensionException e) {
+            throw new IOException(e);
+        } catch (TransformException e) {
+            throw new IOException(e);
         }
 
+        overQuery.setProperties(Query.ALL_PROPERTIES);
         return overQuery;
     }
 
     @Override
     public boolean isCached(Query query) throws IOException {
-        return isSubArea(query);
-    }
-
-    protected boolean isSubArea(final Query query) {
-        return isSubArea(getEnvelope(query.getFilter()));
-    }
-
-    protected boolean isSubArea(final Envelope envelope) {
-        return isSubArea(JTS.toGeometry(envelope));
-    }
-
-    protected boolean isSubArea(final Geometry geom) {
+        final Geometry geom = getGeometry(query);
+        if (geom == null) {
+            return false;
+            // TODO use cache or read from source (how to determine if the cache is complete?)
+        }
         try {
             lockCachedAreas.readLock().lock();
             // no cached data?
             if (cachedAreas == null)
                 return false;
-            return cachedAreas.contains(geom);
+            return cachedAreas.covers(geom);
         } finally {
             lockCachedAreas.readLock().unlock();
         }
@@ -294,11 +314,24 @@ public abstract class BaseFeatureSourceOp<T> extends BaseOp<T, Query> {
     @Override
     public void setCached(Query query, boolean isCached) throws IOException {
         verify(query);
+        final Geometry geom = getGeometry(query);
+        if (geom == null) {
+            return;
+            // TODO use cache or read from source (how to determine if the cache is complete?)
+        }
+
+        setCached(geom, isCached);
+    }
+
+    public void setCached(Geometry geom, boolean isCached) {
+        if (geom == null) {
+            return;
+        }
         if (isCached) {
             // integrate cached area with this query
             try {
                 lockCachedAreas.writeLock().lock();
-                cachedAreas = cachedAreas.union(JTS.toGeometry(getEnvelope(query.getFilter())));
+                cachedAreas = cachedAreas.union(geom);
             } finally {
                 lockCachedAreas.writeLock().unlock();
             }
@@ -306,8 +339,7 @@ public abstract class BaseFeatureSourceOp<T> extends BaseOp<T, Query> {
             // perform a difference between cached area with this query
             try {
                 lockCachedAreas.writeLock().lock();
-                cachedAreas = cachedAreas
-                        .difference(JTS.toGeometry(getEnvelope(query.getFilter())));
+                cachedAreas = cachedAreas.difference(geom);
             } finally {
                 lockCachedAreas.writeLock().unlock();
             }
@@ -316,36 +348,39 @@ public abstract class BaseFeatureSourceOp<T> extends BaseOp<T, Query> {
 
     @Override
     public boolean isDirty(final Query query) throws IOException {
-        return isDirty(getEnvelope(query.getFilter()));
-    }
-
-    protected boolean isDirty(final Envelope envelope) throws IOException {
-        return isDirty(JTS.toGeometry(envelope));
-    }
-
-    protected boolean isDirty(Geometry geom) throws IOException {
+        final Geometry geom = getGeometry(query);
+        if (geom == null) {
+            return false;
+            // TODO use cache or read from source (how to determine if the cache is complete?)
+        }
         try {
             lockDirtyAreas.readLock().lock();
             // no cached data?
             if (dirtyAreas == null)
                 return false;
-            return dirtyAreas.contains(geom);
+            return dirtyAreas.intersects(geom);
         } finally {
             lockDirtyAreas.readLock().unlock();
         }
     }
 
     @Override
-    public void setDirty(Query query) throws IOException {
+    public void setDirty(Query query, boolean value) throws IOException {
 
-        final Filter[] sF = splitFilters(query);
-        final Envelope env = getEnvelope(sF[1]);
-        Geometry geom = JTS.toGeometry(env);
+        final Geometry geom = getGeometry(query);
+        if (geom == null) {
+            return;
+            // TODO use cache or read from source (how to determine if the cache is complete?)
+        }
         try {
-            lockCachedAreas.readLock().lock();
-            cachedAreas = cachedAreas.difference(geom);
+            lockDirtyAreas.writeLock().lock();
+            if (value) {
+                dirtyAreas = dirtyAreas.union(geom);
+            } else {
+                dirtyAreas = dirtyAreas.difference(geom);
+            }
         } finally {
-            lockCachedAreas.readLock().unlock();
+            lockDirtyAreas.writeLock().unlock();
         }
 
     }
@@ -356,6 +391,7 @@ public abstract class BaseFeatureSourceOp<T> extends BaseOp<T, Query> {
      */
     @Override
     public void clear() throws IOException {
+
         try {
             lockCachedAreas.writeLock().lock();
             cachedAreas = new Polygon(null, null, JTSFactoryFinder.getGeometryFactory());
@@ -375,9 +411,9 @@ public abstract class BaseFeatureSourceOp<T> extends BaseOp<T, Query> {
             try {
                 fw = cacheManager.getCache().getFeatureWriter(getEntry().getTypeName(),
                         Transaction.AUTO_COMMIT);
-                do {
+                while (fw.hasNext()) {
                     fw.remove();
-                } while (fw.hasNext());
+                }
             } catch (IOException e) {
                 LOGGER.log(Level.SEVERE, e.getLocalizedMessage(), e);
             } finally {

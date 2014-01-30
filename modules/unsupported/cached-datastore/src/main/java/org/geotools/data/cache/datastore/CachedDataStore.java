@@ -8,13 +8,11 @@ import org.geotools.data.DataStore;
 import org.geotools.data.Transaction;
 import org.geotools.data.cache.op.CacheManager;
 import org.geotools.data.cache.op.Operation;
-import org.geotools.data.cache.op.SchemaOp;
 import org.geotools.data.cache.op.TypeNamesOp;
 import org.geotools.data.cache.utils.DelegateContentFeatureSource;
 import org.geotools.data.store.ContentDataStore;
 import org.geotools.data.store.ContentEntry;
 import org.geotools.data.store.ContentFeatureSource;
-import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.feature.type.Name;
 
 public class CachedDataStore extends ContentDataStore {
@@ -51,26 +49,26 @@ public class CachedDataStore extends ContentDataStore {
             // the schemas are mandatory for most of the other operations so we have to create them on the cache datastore anyway
             final DataStore source = cacheManager.getSource();
             names = source.getNames();
-//            final SchemaOp schemaOp = cacheManager.getCachedOpOfType(Operation.schema,
-//                    SchemaOp.class);
-//            if (schemaOp != null) {
-//                // create schemas
-//                for (Name name : names) {
-//                    SimpleFeatureType schema = null;
-//                    if (!schemaOp.isCached(name) || schemaOp.isDirty(name)) {
-//                        schema = schemaOp.updateCache(name);
-//                        schemaOp.setCached(name, schema != null ? true : false);
-//                    } else {
-//                        schema = schemaOp.getCache(name);
-//                    }
-//                }
-//            } else {
-//                // create schemas
-//                for (Name name : names) {
-//                    SimpleFeatureType type = source.getSchema(name);
-//                    cacheManager.getCache().createSchema(type);
-//                }
-//            }
+            // final SchemaOp schemaOp = cacheManager.getCachedOpOfType(Operation.schema,
+            // SchemaOp.class);
+            // if (schemaOp != null) {
+            // // create schemas
+            // for (Name name : names) {
+            // SimpleFeatureType schema = null;
+            // if (!schemaOp.isCached(name) || schemaOp.isDirty(name)) {
+            // schema = schemaOp.updateCache(name);
+            // schemaOp.setCached(name, schema != null ? true : false);
+            // } else {
+            // schema = schemaOp.getCache(name);
+            // }
+            // }
+            // } else {
+            // // create schemas
+            // for (Name name : names) {
+            // SimpleFeatureType type = source.getSchema(name);
+            // cacheManager.getCache().createSchema(type);
+            // }
+            // }
             return names;
         }
     }

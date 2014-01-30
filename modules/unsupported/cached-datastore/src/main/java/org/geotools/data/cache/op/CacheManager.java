@@ -34,7 +34,12 @@ public class CacheManager implements DisposableBean {
     private final transient Map<Operation, CachedOp<?, ?>> cachedOpMap = new HashMap<Operation, CachedOp<?, ?>>();
 
     public CacheManager(DataStore store, DataStore cache, final String uid) {
-        if (store == null || cache == null)
+        this(store, cache, uid, null);
+    }
+
+    public CacheManager(DataStore store, DataStore cache, final String uid,
+            final Map<String, CachedOpSPI<?>> spiParams) {
+        if (store == null || cache == null || uid == null)
             throw new IllegalArgumentException(
                     "Unable to create the cache manager with null source or cache datastore");
         this.source = store;
@@ -44,7 +49,12 @@ public class CacheManager implements DisposableBean {
         status = new CacheStatus(uid);
 
         // LOAD
-        load(null);
+        Collection<Operation> clear = null;
+        if (spiParams != null) {
+            clear = status.setCachedOpSPI(spiParams.values());
+        }
+        // re load the operations
+        load(clear);
     }
 
     public String getUID() {
@@ -53,14 +63,6 @@ public class CacheManager implements DisposableBean {
 
     public CacheStatus getStatus() {
         return status;
-    }
-
-    public void setStatus(Collection<CachedOpSPI<?>> spiColl) {
-
-        Collection<Operation> clear=status.setCachedOpSPI(spiColl);
-
-        // re load the operations
-        load(clear);
     }
 
     /**
@@ -118,6 +120,18 @@ public class CacheManager implements DisposableBean {
         status.save();
     }
 
+    public <K, T> void store(K key, T value) {
+        status.store(key, value);
+    }
+
+    public <K, T> T load(K key) {
+        return status.load(key);
+    }
+
+    public <K> void evict(K key) {
+        status.evict(key);
+    }
+
     private String createCachedOpUID(Operation op) {
         return new StringBuilder(op.toString()).append(':').append(uid).toString();
     }
@@ -146,7 +160,7 @@ public class CacheManager implements DisposableBean {
      * 
      * @param uniqueName
      */
-    
+
     public void load(Collection<Operation> clearCollection) {
 
         if (status == null)
@@ -156,16 +170,17 @@ public class CacheManager implements DisposableBean {
         // dispose and remove stored operations
         try {
             this.cachedOpMapLock.writeLock().lock();
-            final Iterator<Entry<Operation, CachedOp<?, ?>>> it=cachedOpMap.entrySet().iterator();
-            while (it.hasNext()){
-                final Entry<Operation, CachedOp<?, ?>> op =it.next();
+            final Iterator<Entry<Operation, CachedOp<?, ?>>> it = cachedOpMap.entrySet().iterator();
+            while (it.hasNext()) {
+                final Entry<Operation, CachedOp<?, ?>> op = it.next();
                 // if the operation should be cleared
-                if (clearCollection!=null && clearCollection.contains(op.getKey())){
+                if (clearCollection != null && clearCollection.contains(op.getKey())) {
                     op.getValue().clear();
+                } else {
+                    op.getValue().save();
                 }
                 op.getValue().dispose();
                 it.remove();
-                //TODO clear cached ops???
             }
         } catch (IOException e) {
             LOGGER.log(Level.SEVERE, e.getMessage(), e);
@@ -201,8 +216,8 @@ public class CacheManager implements DisposableBean {
 
     public void dispose() throws IOException {
         // save the status
-        save();
-        
+         save();
+
         // dispose
         try {
             this.cachedOpMapLock.readLock().lock();

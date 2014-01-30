@@ -7,8 +7,8 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.logging.Level;
@@ -16,6 +16,7 @@ import java.util.logging.Logger;
 
 import org.geotools.data.cache.utils.EHCacheUtils;
 import org.springframework.cache.Cache.ValueWrapper;
+import org.springframework.cache.ehcache.EhCacheCache;
 
 /**
  * 
@@ -27,8 +28,8 @@ class CacheStatus {
     public static final String CACHEMANAGER_STORE_NAME = "CacheManagerStatus";
 
     // storage for the cache status
-    private final transient static org.springframework.cache.Cache ehcache = EHCacheUtils
-            .getCacheUtils().getCache(CACHEMANAGER_STORE_NAME);
+    private final transient EhCacheCache ehcache = EHCacheUtils.getCacheUtils().getCacheOfType(
+            CACHEMANAGER_STORE_NAME, EhCacheCache.class);
 
     private final transient Logger LOGGER = org.geotools.util.logging.Logging.getLogger(getClass()
             .getPackage().getName());
@@ -36,7 +37,7 @@ class CacheStatus {
     // operations
     private final transient ReadWriteLock cachedOpSPIMapLock = new ReentrantReadWriteLock();
 
-    private final transient Map<Operation, CachedOpSPI<?>> cachedOpSPIMap = new HashMap<Operation, CachedOpSPI<?>>();
+    private final Map<Operation, CachedOpSPI<?>> cachedOpSPIMap = new HashMap<Operation, CachedOpSPI<?>>();
 
     // name for the operations map storage
     private final String uid;
@@ -132,36 +133,6 @@ class CacheStatus {
                     it3.remove();
                 }
             }
-
-            // final Iterator<Entry<Operation, CachedOpSPI<?>>> it2 = cachedOpSPIMap.entrySet()
-            // .iterator();
-            // while (it2.hasNext()) {
-            // final Entry<Operation, CachedOpSPI<?>> op = it2.next();
-            // final CachedOpSPI<?> storedOpSPI = op.getValue();
-            // // for the same operation
-            // if (selectedOpSPI.getOp().equals(storedOpSPI.getOp())) {
-            // // if stored is equals with the selected no change is required
-            // if (selectedOpSPI.equals(storedOpSPI)) {
-            // continue;
-            // } else {
-            // // substitute the the stored operation with the new one
-            // op.setValue(selectedOpSPI);
-            // // add the operation to the return list
-            // returns.add(storedOpSPI.getOp());
-            // }
-            // // remove from changes list
-            // it.remove();
-            // break;
-            // }
-            // }
-            // }
-
- 
-
-            // now add remaining selected SPI
-//            for (CachedOpSPI<?> spi : spiColl) {
-//
-//            }
         } finally {
             this.cachedOpSPIMapLock.writeLock().unlock();
         }
@@ -181,7 +152,10 @@ class CacheStatus {
      * loads the cachedOpSPIMap status from the ehcache
      */
     void load() {
-        final ValueWrapper cachedStatus = ehcache.get(getUID());
+        if (LOGGER.isLoggable(Level.INFO)) {
+            LOGGER.info("Loading " + uid + " from cache (" + uid.hashCode() + ")");
+        }
+        final ValueWrapper cachedStatus = ehcache.get(uid.hashCode());
         if (cachedStatus != null) {
             this.cachedOpSPIMap.putAll((Map<Operation, CachedOpSPI<?>>) cachedStatus.get());
         } else {
@@ -190,43 +164,6 @@ class CacheStatus {
             }
         }
     }
-
-    // public void putCachedOp(CachedOpSPI<?> spi, CachedOp<?, ?> cachedOp) {
-    // try {
-    // this.cachedOpMapLock.writeLock().lock();
-    // cachedOpMap.put(spi.getOp(), cachedOp);
-    // } finally {
-    // this.cachedOpMapLock.writeLock().unlock();
-    // }
-    // try {
-    // this.cachedOpSPIMapLock.writeLock().lock();
-    // cachedOpSPIMap.put(spi.getOp(),spi);
-    // } finally {
-    // this.cachedOpSPIMapLock.writeLock().unlock();
-    // }
-    // }
-
-    // private void putAllCachedOp(Map<Operation, CachedOp<?, ?>> all) {
-    // try {
-    // this.cachedOpMapLock.writeLock().lock();
-    // for (Entry<Operation, CachedOp<?, ?>> e : all.entrySet()) {
-    // cachedOpMap.put(e.getKey(), e.getValue());
-    // }
-    // } finally {
-    // this.cachedOpMapLock.writeLock().unlock();
-    // }
-    // }
-
-    // public void putAllCachedOp(Map<CachedOpSPI<CachedOp<?, ?>>, CachedOp<?, ?>> all) {
-    // try {
-    // this.cachedOpMapLock.writeLock().lock();
-    // for (Entry<CachedOpSPI<CachedOp<?, ?>>, CachedOp<?, ?>> e : all.entrySet()) {
-    // cachedOpMap.put(e.getKey(), e.getValue());
-    // }
-    // } finally {
-    // this.cachedOpMapLock.writeLock().unlock();
-    // }
-    // }
 
     /**
      * Recursively save the current status
@@ -237,7 +174,7 @@ class CacheStatus {
         try {
             this.cachedOpSPIMapLock.readLock().lock();
             // store the set into the cache
-            ehcache.put(uid, cachedOpSPIMap);
+            store(uid, cachedOpSPIMap);
         } finally {
             this.cachedOpSPIMapLock.readLock().unlock();
         }
@@ -247,8 +184,7 @@ class CacheStatus {
      * clear the cache status and all of the sub caches
      */
     void clear() throws IOException {
-        // evict
-        ehcache.evict(uid);
+
     }
 
     /**
@@ -260,4 +196,33 @@ class CacheStatus {
     public void dispose() throws IOException {
     }
 
+    <K> void evict(K key) {
+        // evict
+        if (LOGGER.isLoggable(Level.INFO)) {
+            LOGGER.info("Evicting " + key + " from storage");
+        }
+        ehcache.evict(key.hashCode());
+    }
+
+    <K, T> void store(K key, T value) {
+        if (LOGGER.isLoggable(Level.INFO)) {
+            LOGGER.info("Storing " + key + " into cache using (" + key.hashCode() + ")");
+        }
+        ehcache.put(key.hashCode(), value);
+    }
+
+    <K, T> T load(K key) {
+        if (LOGGER.isLoggable(Level.INFO)) {
+            LOGGER.info("Loading " + key + " from cache (" + key.hashCode() + ")");
+        }
+        final ValueWrapper cachedStatus = ehcache.get(key.hashCode());
+        if (cachedStatus != null) {
+            return (T) cachedStatus.get();
+        } else {
+            if (LOGGER.isLoggable(Level.WARNING)) {
+                LOGGER.log(Level.WARNING, "No entry load from cache for key: " + key);
+            }
+        }
+        return null;
+    }
 }

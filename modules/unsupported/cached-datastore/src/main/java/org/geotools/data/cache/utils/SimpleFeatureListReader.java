@@ -11,29 +11,28 @@ import org.opengis.feature.simple.SimpleFeatureType;
 
 public class SimpleFeatureListReader extends DelegateSimpleFeatureReader {
 
-	private final Iterator<SimpleFeature> it;
+    private final Iterator<SimpleFeature> it;
 
-	public SimpleFeatureListReader(CacheManager cacheManager,
-			SimpleFeatureType schema, List<SimpleFeature> coll)
-			throws IOException {
-		super(cacheManager, schema);
-		it = coll.iterator();
-	}
+    public SimpleFeatureListReader(CacheManager cacheManager, SimpleFeatureType schema,
+            List<SimpleFeature> coll) throws IOException {
+        super(cacheManager, schema);
+        it = coll.iterator();
+    }
 
-	@Override
-	public SimpleFeature getNextInternal() throws IOException,
-			IllegalArgumentException, NoSuchElementException {
-		return it.next();
-	}
+    @Override
+    public SimpleFeature getNextInternal() throws IOException, IllegalArgumentException,
+            NoSuchElementException {
+        return it.next();
+    }
 
-	@Override
-	public boolean hasNext() throws IOException {
-		return it.hasNext();
-	}
+    @Override
+    public boolean hasNext() throws IOException {
+        return it.hasNext();
+    }
 
-	@Override
-	public void close() throws IOException {
-		// do nothing
-	}
+    @Override
+    public void close() throws IOException {
+        // do nothing
+    }
 
 }

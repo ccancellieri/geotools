@@ -43,7 +43,7 @@ public class NextOp extends BaseOp<SimpleFeature, SimpleFeature> {
     }
 
     @Override
-    public void setDirty(SimpleFeature query) throws IOException {
+    public void setDirty(SimpleFeature query, boolean value) throws IOException {
         throw new UnsupportedOperationException();
     }
 

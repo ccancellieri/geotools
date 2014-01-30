@@ -7,126 +7,140 @@ import org.geotools.data.FeatureReader;
 import org.geotools.data.FeatureWriter;
 import org.geotools.data.Query;
 import org.geotools.data.Transaction;
+import org.geotools.data.cache.op.BaseFeatureSourceOp;
 import org.geotools.data.cache.op.CacheManager;
 import org.geotools.data.store.ContentEntry;
-import org.opengis.feature.Property;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.feature.type.Name;
 
-public class PipelinedContentFeatureReader extends DelegateSimpleFeature
-		implements FeatureReader<SimpleFeatureType, SimpleFeature> {
+import com.vividsolutions.jts.geom.Geometry;
 
-	private final ContentEntry entry;
+public class PipelinedContentFeatureReader extends DelegateSimpleFeature implements
+        FeatureReader<SimpleFeatureType, SimpleFeature> {
 
-	private final Transaction transaction;
+    private final ContentEntry entry;
 
-	private FeatureWriter<SimpleFeatureType, SimpleFeature> fw = null;
+    private final Transaction transaction;
 
-	private FeatureReader<SimpleFeatureType, SimpleFeature> fr = null;
+    private FeatureWriter<SimpleFeatureType, SimpleFeature> fw = null;
 
-	private FeatureReader<SimpleFeatureType, SimpleFeature> frDiff = null;
+    private FeatureReader<SimpleFeatureType, SimpleFeature> fr = null;
 
-	public PipelinedContentFeatureReader(ContentEntry entry,
-			final Query sourceQuery, final Query cachedAreasQuery,
-			final CacheManager cacheManager) throws IOException {
-		this(entry, sourceQuery, cachedAreasQuery, cacheManager,
-				Transaction.AUTO_COMMIT);
-	}
+    private SimpleFeatureUpdaterReader fwDiff = null;
 
-	public PipelinedContentFeatureReader(ContentEntry entry,
-			final Query sourceQuery, final Query cachedAreasQuery,
-			final CacheManager cacheManager, final Transaction transaction)
-			throws IOException {
-		super(cacheManager);
-		this.entry = entry;
+    private BaseFeatureSourceOp<?> featureSourceOp = null;
 
-		this.transaction = transaction;
+    private Query query = null;
 
-		fr = cacheManager.getSource()
-				.getFeatureReader(sourceQuery, transaction);
-		fw = cacheManager.getCache().getFeatureWriter(
-				sourceQuery.getTypeName(), sourceQuery.getFilter(),
-				// //java.util.NoSuchElementException:
-				// FeatureWriter does not have
-				// additional content
-				transaction);
+    public PipelinedContentFeatureReader(ContentEntry entry, final Query query,
+            final CacheManager cacheManager, final BaseFeatureSourceOp<Query> featureSourceOp)
+            throws IOException {
+        this(entry, query, cacheManager, featureSourceOp, Transaction.AUTO_COMMIT);
+    }
 
-		frDiff = cacheManager.getCache().getFeatureReader(cachedAreasQuery,
-				transaction);
-	}
+    public PipelinedContentFeatureReader(ContentEntry entry, final Query query,
+            final CacheManager cacheManager, final BaseFeatureSourceOp<?> featureSourceOp,
+            final Transaction transaction) throws IOException {
+        super(cacheManager);
+        this.entry = entry;
+        this.query = query;
+        this.featureSourceOp = featureSourceOp;
+        this.transaction = transaction;
+    }
 
-	@Override
-	protected Name getFeatureTypeName() {
-		return entry.getName();
-	}
+    @Override
+    protected Name getFeatureTypeName() {
+        return entry.getName();
+    }
 
-	@Override
-	protected SimpleFeature getNextInternal() throws IllegalArgumentException,
-			NoSuchElementException, IOException {
-		if (!fw.hasNext()) {
-			try {
-				fw.close();
-			} catch (Exception e) {
+    @Override
+    protected SimpleFeature getNextInternal() throws IllegalArgumentException,
+            NoSuchElementException, IOException {
+        final SimpleFeature df;
+        final SimpleFeature sf;
+        if (fr.hasNext()) {
+            df = fw.next();
+            sf = fr.next();
+            for (int i = 0; i < sf.getAttributeCount(); i++) {
+                final Object a = sf.getAttribute(i);
+                df.setAttribute(i, a);
 
-			}
-			fw = cacheManager.getCache().getFeatureWriterAppend(
-					getFeatureTypeName().getLocalPart(), transaction);
-		}
-		final SimpleFeature df = fw.next();
-		for (final Property p : fr.next().getProperties()) {
-			df.setAttribute(p.getName(), p.getValue());
-		}
-		return df;
-	}
+            }
+        } else { // if (frDiff.hasNext()) {
+            if (!fwDiff.hasNext()) {
+                throw new IOException("missing feature in cache, this may never happen");
+            }
+            df = fwDiff.next();
+        }
+        return df;
+    }
 
-	@Override
-	public SimpleFeature next() throws IOException, IllegalArgumentException,
-			NoSuchElementException {
-		if (fr.hasNext()) {
-			final SimpleFeature df = super.next();
-			fw.write();
-			return df;
-		} else {
-			// conclude returning the diff
-			return frDiff.next();
-		}
-	}
+    @Override
+    public SimpleFeature next() throws IOException, IllegalArgumentException,
+            NoSuchElementException {
+        final SimpleFeature df;
+        if (fr.hasNext()) {
+            df = super.next();
+            fw.write();
+        } else {
+            // conclude returning the diff
+            df = super.next();
+            // fwDiff.write();
+        }
 
-	@Override
-	public boolean hasNext() throws IOException {
-		boolean notEnd = fr.hasNext() || frDiff.hasNext();
-		// at the end clear remaining (dirty) features
-		// if (!notEnd) {
-		// // TODO check me
-		// while (fw.hasNext()) {
-		// fw.next();
-		// fw.remove();
-		// }
-		// }
-		return notEnd;
-	}
+        // set as cached
+        featureSourceOp.setCached((Geometry) df.getDefaultGeometry(), true);
+        featureSourceOp.setDirty(query, false); // TODO
+        return df;
 
-	@Override
-	public void close() throws IOException {
-		if (fr != null) {
-			try {
-				fr.close();
-			} catch (IOException e) {
-			}
-		}
-		if (fw != null) {
-			try {
-				fw.close();
-			} catch (IOException e) {
-			}
-		}
-		if (frDiff != null) {
-			try {
-				frDiff.close();
-			} catch (IOException e) {
-			}
-		}
-	}
+    }
+
+    @Override
+    public boolean hasNext() throws IOException {
+        if (fr == null || fwDiff == null) {
+            final Query cacheQuery = featureSourceOp.queryCachedAreas(query);
+            final Query sourceQuery = featureSourceOp.querySource(query);
+            if (fr == null) {
+
+                fr = cacheManager.getSource().getFeatureReader(sourceQuery, transaction);
+
+                fw = cacheManager.getCache().getFeatureWriterAppend(
+                        getFeatureTypeName().getLocalPart(), transaction);
+            }
+            if (fwDiff == null) {
+                fwDiff = new SimpleFeatureUpdaterReader(entry, cacheQuery, cacheManager,
+                        transaction);
+            }
+        }
+        boolean notEnd = fr.hasNext() || fwDiff.hasNext();
+        // if (!notEnd){
+        // featureSourceOp.setCached(query, true); //TODO
+        // featureSourceOp.setDirty(query, false); //TODO
+        // }
+        return notEnd;
+    }
+
+    @Override
+    public void close() throws IOException {
+        if (fr != null) {
+            try {
+                fr.close();
+            } catch (IOException e) {
+            }
+        }
+        if (fw != null) {
+            try {
+                fw.close();
+            } catch (IOException e) {
+            }
+        }
+        if (fwDiff != null) {
+            try {
+                fwDiff.close();
+            } catch (IOException e) {
+            }
+        }
+    }
 
 }

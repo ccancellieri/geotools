@@ -8,26 +8,9 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.logging.Logger;
 
-import org.geotools.data.cache.utils.EHCacheUtils;
-import org.springframework.cache.support.SimpleValueWrapper;
-
 public abstract class BaseOp<T, K> implements CachedOp<T, K> {
     protected final transient Logger LOGGER = org.geotools.util.logging.Logging
             .getLogger(getClass().getPackage().getName());
-
-    public final static String CACHEDOP_STORE_NAME = "CachedOpStatus";
-
-    protected final static transient org.springframework.cache.Cache ehCache = EHCacheUtils
-            .getCacheUtils().getCache(CACHEDOP_STORE_NAME);
-    static {
-        if (ehCache == null) {
-            throw new IllegalStateException("Unable to create a CachedOp without check for the "
-                    + CACHEDOP_STORE_NAME + " in your ehcache configuration.");
-        }
-    }
-
-    // lock on cache
-    protected final static transient ReadWriteLock lockCache = new ReentrantReadWriteLock();
 
     // manager
     protected final transient CacheManager cacheManager;
@@ -50,7 +33,7 @@ public abstract class BaseOp<T, K> implements CachedOp<T, K> {
         this.cacheManager = cacheManager;
 
         // LOAD
-        BaseOp<T, K> baseOp = load(uid);
+        final BaseOp<T, K> baseOp = load(uid);
         if (baseOp != null) {
             clone(baseOp);
         } else {
@@ -75,13 +58,7 @@ public abstract class BaseOp<T, K> implements CachedOp<T, K> {
 
     @Override
     public Serializable save() throws IOException {
-        try {
-            lockCache.writeLock().lock();
-            ehCache.put(uid, this);
-            // ehCachePut(ehCache, this, uid);
-        } finally {
-            lockCache.writeLock().unlock();
-        }
+        cacheManager.store(uid, this);
         return uid;
     }
 
@@ -98,17 +75,7 @@ public abstract class BaseOp<T, K> implements CachedOp<T, K> {
     @Override
     public <E extends CachedOp<T, K>> E load(Serializable uuid) throws IOException {
         verify(uuid);
-        Object serialized = ehCache.get(uuid);
-        if (serialized != null) {
-            final SimpleValueWrapper vw = (SimpleValueWrapper) serialized;
-            return (E) vw.get();
-            // if (vw != null) {
-            // BeanUtils.copyProperties(vw.get(), this);
-            //
-            // }
-        }
-        LOGGER.info("No stored status is found for this operation: " + uuid);
-        return null;
+        return cacheManager.load(uuid);
     }
 
     protected Map<K, Boolean> getIsCachedMap() {
@@ -119,8 +86,8 @@ public abstract class BaseOp<T, K> implements CachedOp<T, K> {
     public boolean isCached(K o) throws IOException {
         try {
             isCachedLock.readLock().lock();
-            Object b = isCachedMap.get(o);
-            return b != null ? true : false;
+            final Boolean b = isCachedMap.get(o);
+            return b != null ? b.booleanValue() : false;
         } finally {
             isCachedLock.readLock().unlock();
         }
@@ -130,7 +97,7 @@ public abstract class BaseOp<T, K> implements CachedOp<T, K> {
     public void setCached(K key, boolean value) throws IOException {
         try {
             isCachedLock.writeLock().lock();
-            this.isCachedMap.put(key, value);
+            isCachedMap.put(key, value);
         } finally {
             isCachedLock.writeLock().unlock();
         }
@@ -147,31 +114,5 @@ public abstract class BaseOp<T, K> implements CachedOp<T, K> {
             throw new IllegalArgumentException("wrong argument passed");
         }
     }
-
-    // protected static <T> void ehCachePut(Cache ehCacheManager, T value, Object... keys)
-    // throws IOException {
-    // verify(ehCacheManager);
-    // verify(value);
-    // verify(keys);
-    //
-    // if (value != null) {
-    // ehCacheManager.put(Arrays.deepHashCode(keys), value);
-    // } else {
-    // throw new IOException(
-    // "Unable to cache a null Object, please check the source datastore.");
-    // }
-    // }
-    //
-    // protected static <T> T ehCacheGet(Cache cacheManager, Object... keys) {
-    // verify(cacheManager);
-    // verify(keys);
-    // final SimpleValueWrapper vw = (SimpleValueWrapper) cacheManager.get(Arrays
-    // .deepHashCode(keys));
-    // if (vw != null) {
-    // return (T) vw.get();
-    // } else {
-    // return null;
-    // }
-    // }
 
 }

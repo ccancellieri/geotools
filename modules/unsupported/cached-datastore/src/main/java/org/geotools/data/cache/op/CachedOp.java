@@ -60,7 +60,7 @@ public interface  CachedOp<T, K> {
 
     public boolean isDirty(K key) throws IOException;
 
-    void setDirty(K key) throws IOException;
+    void setDirty(K key, boolean value) throws IOException;
 
     /**
      * @return true if cache was already called and cached value is not dirty

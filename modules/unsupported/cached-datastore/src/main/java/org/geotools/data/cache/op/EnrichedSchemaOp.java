@@ -44,12 +44,19 @@ public class EnrichedSchemaOp extends SchemaOp {
         final SimpleFeatureType newSchema = b.buildFeatureType();
 
         if (isDirty(name)) {
-            // cache.createSchema(SimpleFeatureTypeBuilder.copy(store.getSchema(name)));
-            cacheManager.getCache().updateSchema(name, newSchema);
+            try {
+                cacheManager.getCache().updateSchema(name, newSchema);
+            } catch (IOException ioe){
+//                cacheManager.getCache().removeSchema(name, schema);
+//                cacheManager.getCache().createSchema(newSchema);
+                throw new UnsupportedOperationException("we need drop schema");
+            }
+            setDirty(name, false);
         } else {
             cacheManager.getCache().createSchema(newSchema);
         }
-
+        setCached(name, true);
+        
         return newSchema;
     }
 
@@ -57,16 +64,6 @@ public class EnrichedSchemaOp extends SchemaOp {
     public SimpleFeatureType getCache(Name o) throws IOException {
         verify(o);
         return cacheManager.getCache().getSchema(o);
-    }
-
-    @Override
-    public boolean isDirty(Name key) throws IOException {
-        return false;
-    }
-
-    @Override
-    public void setDirty(Name query) throws IOException {
-        throw new UnsupportedOperationException();
     }
 
 }

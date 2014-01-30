@@ -1,14 +1,13 @@
 package org.geotools.data.cache.utils;
 
-import java.io.Serializable;
 import java.io.StringWriter;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeSet;
 import java.util.Map.Entry;
+import java.util.TreeSet;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -107,40 +106,6 @@ public class CacheUtils implements ApplicationContextAware {
         return sw.toString();
     }
 
-    //
-    // public void printCache() {
-    // for (org.springframework.cache.CacheManager cache : caches) {
-    // for (String cacheName : cache.getCacheNames()) {
-    // org.springframework.cache.Cache c = cache.getCache(cacheName);
-    // System.out.print(((EhCacheCache) c.getNativeCache()));
-    // }
-    // }
-    // }
-    //
-    // public Object getCache(String name, Object key) {
-    // for (org.springframework.cache.CacheManager cache : caches) {
-    // for (String cacheName : cache.getCacheNames()) {
-    // if (name.equalsIgnoreCase(cacheName)) {
-    // org.springframework.cache.Cache c = cache.getCache(cacheName);
-    // return c.get(key);
-    // }
-    // }
-    // }
-    // return null;
-    // }
-    //
-    // public org.springframework.cache.Cache getCache(String name) {
-    // for (org.springframework.cache.CacheManager cache : caches) {
-    // for (String cacheName : cache.getCacheNames()) {
-    // if (name.equalsIgnoreCase(cacheName)) {
-    // org.springframework.cache.Cache c = cache.getCache(cacheName);
-    // return c;
-    // }
-    // }
-    // }
-    // return null;
-    // }
-
     public static CacheUtils getCacheUtils() {
         if (context != null)
             return (CacheUtils) context.getBean(CacheUtils.class);
@@ -154,16 +119,5 @@ public class CacheUtils implements ApplicationContextAware {
     public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
         this.context = applicationContext;
     }
-    //
-    // @Override
-    // public void postProcessBeanFactory(ConfigurableListableBeanFactory beanFactory) throws BeansException {
-    // // for (String beanName : dependencies.keySet()) {
-    // String beanName="geoServerLoader";
-    // BeanDefinition bd = beanFactory.getBeanDefinition(beanName);
-    //
-    // bd.setDependsOn(StringUtils.mergeStringArrays(bd.getDependsOn(), new String[]{BEAN_NAME,EHCacheUtils.BEAN_NAME}));
-    // // }
-    //
-    // }
 
 }

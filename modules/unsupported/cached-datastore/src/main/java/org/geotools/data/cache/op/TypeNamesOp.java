@@ -45,7 +45,7 @@ public class TypeNamesOp extends BaseOp<List<Name>, String> {
     }
 
     @Override
-    public void setDirty(String query) throws IOException {
+    public void setDirty(String query, boolean value) throws IOException {
         throw new UnsupportedOperationException();
     }
 }

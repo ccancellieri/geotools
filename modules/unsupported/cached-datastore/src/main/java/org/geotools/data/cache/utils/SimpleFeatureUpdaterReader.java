@@ -14,64 +14,63 @@ import org.opengis.feature.type.Name;
 
 public class SimpleFeatureUpdaterReader extends DelegateSimpleFeature {
 
-	private final ContentEntry entry;
+    private final ContentEntry entry;
 
-	private final Transaction transaction;
+    private final Transaction transaction;
 
-	private FeatureWriter<SimpleFeatureType, SimpleFeature> fw = null;
+    private FeatureWriter<SimpleFeatureType, SimpleFeature> fw = null;
 
-	public SimpleFeatureUpdaterReader(ContentEntry entry, final Query query,
-			final CacheManager cacheManager) throws IOException {
-		this(entry, query, cacheManager, Transaction.AUTO_COMMIT);
-	}
+    public SimpleFeatureUpdaterReader(ContentEntry entry, final Query query,
+            final CacheManager cacheManager) throws IOException {
+        this(entry, query, cacheManager, Transaction.AUTO_COMMIT);
+    }
 
-	public SimpleFeatureUpdaterReader(ContentEntry entry, final Query query,
-			final CacheManager cacheManager, final Transaction transaction)
-			throws IOException {
+    public SimpleFeatureUpdaterReader(ContentEntry entry, final Query query,
+            final CacheManager cacheManager, final Transaction transaction) throws IOException {
 
-		super(cacheManager);
+        super(cacheManager);
 
-		this.entry = entry;
+        this.entry = entry;
 
-		this.transaction = transaction;
+        this.transaction = transaction;
 
-		fw = cacheManager.getCache().getFeatureWriter(query.getTypeName(),
-				query.getFilter(), transaction);
+        fw = cacheManager.getCache().getFeatureWriter(query.getTypeName(), query.getFilter(),
+                transaction);
 
-	}
+    }
 
-	@Override
-	protected Name getFeatureTypeName() {
-		return entry.getName();
-	}
+    @Override
+    protected Name getFeatureTypeName() {
+        return entry.getName();
+    }
 
-	@Override
-	protected SimpleFeature getNextInternal() throws IllegalArgumentException,
-			NoSuchElementException, IOException {
-		return fw.next();
-	}
+    @Override
+    protected SimpleFeature getNextInternal() throws IllegalArgumentException,
+            NoSuchElementException, IOException {
+        return fw.next();
+    }
 
-	@Override
-	public SimpleFeature next() throws IOException, IllegalArgumentException,
-			NoSuchElementException {
-		final SimpleFeature df = super.next();
-		fw.write();
-		return df;
-	}
+    @Override
+    public SimpleFeature next() throws IOException, IllegalArgumentException,
+            NoSuchElementException {
+        final SimpleFeature df = super.next();
+        fw.write();
+        return df;
+    }
 
-	@Override
-	public boolean hasNext() throws IOException {
-		return fw.hasNext();
-	}
+    @Override
+    public boolean hasNext() throws IOException {
+        return fw.hasNext();
+    }
 
-	@Override
-	public void close() throws IOException {
-		if (fw != null) {
-			try {
-				fw.close();
-			} catch (IOException e) {
-			}
-		}
-	}
+    @Override
+    public void close() throws IOException {
+        if (fw != null) {
+            try {
+                fw.close();
+            } catch (IOException e) {
+            }
+        }
+    }
 
 }
