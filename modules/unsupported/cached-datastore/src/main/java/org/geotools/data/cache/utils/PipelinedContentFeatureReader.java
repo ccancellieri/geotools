@@ -60,6 +60,17 @@ public class PipelinedContentFeatureReader extends DelegateSimpleFeature impleme
         final SimpleFeature df;
         final SimpleFeature sf;
         if (fr.hasNext()) {
+            if (!fw.hasNext()) {
+                try {
+                    if (fw != null) {
+                        fw.close();
+                    }
+                } catch (IOException e) {
+                }
+                fw = cacheManager.getCache().getFeatureWriterAppend(
+                        getFeatureTypeName().getLocalPart(), transaction);
+            }
+
             df = fw.next();
             sf = fr.next();
             for (int i = 0; i < sf.getAttributeCount(); i++) {
@@ -105,8 +116,9 @@ public class PipelinedContentFeatureReader extends DelegateSimpleFeature impleme
 
                 fr = cacheManager.getSource().getFeatureReader(sourceQuery, transaction);
 
-                fw = cacheManager.getCache().getFeatureWriterAppend(
-                        getFeatureTypeName().getLocalPart(), transaction);
+                fw = cacheManager.getCache().getFeatureWriter(getFeatureTypeName().getLocalPart(),
+                        sourceQuery.getFilter(), transaction);
+
             }
             if (fwDiff == null) {
                 fwDiff = new SimpleFeatureUpdaterReader(entry, cacheQuery, cacheManager,

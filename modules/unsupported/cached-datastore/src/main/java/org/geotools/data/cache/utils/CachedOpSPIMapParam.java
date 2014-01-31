@@ -1,6 +1,5 @@
 package org.geotools.data.cache.utils;
 
-import java.io.IOException;
 import java.io.StringWriter;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -20,10 +19,9 @@ import org.opengis.util.InternationalString;
  */
 public class CachedOpSPIMapParam extends Param {
 
-
     protected final static transient Logger LOGGER = org.geotools.util.logging.Logging
             .getLogger("org.geotools.data.cache.utils.CachedOpSPIMapParam");
-    
+
     public CachedOpSPIMapParam(String arg0) {
         super(arg0);
     }
@@ -69,48 +67,50 @@ public class CachedOpSPIMapParam extends Param {
         return parseSPIMap(text);
     }
 
-    public static Map<String, CachedOpSPI<?>> parseSPIMap(String text)  {
+    public static Map<String, CachedOpSPI<?>> parseSPIMap(String text) {
         final Map<String, CachedOpSPI<?>> output = new HashMap<String, CachedOpSPI<?>>();
         text = text.substring(1, text.length() - 1);
         for (String pair : text.split(",")) {
             final String[] kv = pair.split("=");
-            CachedOpSPI<?> spi;
-            try {
-                spi = (CachedOpSPI<?>) Class.forName(kv[1].trim()).newInstance();
-                output.put(kv[0].trim(), spi);
-            } catch (InstantiationException e) {
-                LOGGER.log(Level.SEVERE, e.getMessage(), e);
-            } catch (IllegalAccessException e) {
-                LOGGER.log(Level.SEVERE, e.getMessage(), e);
-            } catch (ClassNotFoundException e) {
-                LOGGER.log(Level.SEVERE, e.getMessage(), e);
+            if (kv.length > 1 && kv[1].length() > 0) {
+                CachedOpSPI<?> spi;
+                try {
+                    spi = (CachedOpSPI<?>) Class.forName(kv[1].trim()).newInstance();
+                    output.put(kv[0].trim(), spi);
+                } catch (InstantiationException e) {
+                    LOGGER.log(Level.SEVERE, e.getMessage(), e);
+                } catch (IllegalAccessException e) {
+                    LOGGER.log(Level.SEVERE, e.getMessage(), e);
+                } catch (ClassNotFoundException e) {
+                    LOGGER.log(Level.SEVERE, e.getMessage(), e);
+                }
             }
         }
         return output;
     }
-    
+
     @Override
     public String text(Object value) {
         return toText((Map<String, CachedOpSPI<?>>) value);
     }
 
     public static String toText(Map<String, CachedOpSPI<?>> value) {
-        if (value==null)
+        if (value == null)
             throw new IllegalArgumentException("Unable to convert a null map");
-        final StringWriter sw=new StringWriter();
+        final StringWriter sw = new StringWriter();
         sw.write('{');
-        final Iterator<Entry<String, CachedOpSPI<?>>> it=value.entrySet().iterator();
-        if (it.hasNext()){
-            Entry<String, CachedOpSPI<?>> e=it.next();
-            if (e.getValue()!=null){
+        final Iterator<Entry<String, CachedOpSPI<?>>> it = value.entrySet().iterator();
+        if (it.hasNext()) {
+            Entry<String, CachedOpSPI<?>> e = it.next();
+            if (e.getValue() != null) {
                 sw.write(e.getKey());
                 sw.write('=');
                 sw.write(e.getValue().getClass().getName());
             }
         }
         while (it.hasNext()) {
-            Entry<String, CachedOpSPI<?>> e=it.next();
-            if (e.getValue()!=null){
+            Entry<String, CachedOpSPI<?>> e = it.next();
+            if (e.getValue() != null) {
                 sw.write(',');
                 sw.write(e.getKey());
                 sw.write('=');

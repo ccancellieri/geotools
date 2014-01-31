@@ -165,10 +165,10 @@ public abstract class BaseFeatureSourceOp<T> extends BaseOp<T, Query> {
                     }
                     final String geoName = geoDesc.getLocalName();
 
-                    final Filter areaFilter = ff.intersects(ff.property(geoName), ff
+                    final Filter areaFilter = ff.contains(ff.property(geoName), ff
                             .literal(transform != null ? JTS.transform(cachedAreas, transform)
                                     : cachedAreas));
-                    final Filter dirtyFilter = ff.intersects(ff.property(geoName), ff
+                    final Filter dirtyFilter = ff.contains(ff.property(geoName), ff
                             .literal(transform != null ? JTS.transform(dirtyAreas, transform)
                                     : dirtyAreas));
 
@@ -262,9 +262,15 @@ public abstract class BaseFeatureSourceOp<T> extends BaseOp<T, Query> {
                     overQuery.setFilter(query.getFilter());
                 } else {// if (cachedAreas.getNumGeometries() > 0) {
 
-                    final Filter areaFilter = ff.intersects(ff.property(geoName), ff
+//                    final Filter areaFilter = ff.intersects(ff.property(geoName), ff
+//                            .literal(transform != null ? JTS.transform(cachedAreas, transform)
+//                                    : cachedAreas));
+                    
+                    final Filter areaFilter = ff.contains(ff.property(geoName), ff
                             .literal(transform != null ? JTS.transform(cachedAreas, transform)
                                     : cachedAreas));
+                    
+                    
                     final Filter dirtyFilter = ff.intersects(ff.property(geoName), ff
                             .literal(transform != null ? JTS.transform(dirtyAreas, transform)
                                     : dirtyAreas));
@@ -274,8 +280,10 @@ public abstract class BaseFeatureSourceOp<T> extends BaseOp<T, Query> {
                         final Filter filter = ff.intersects(ff.property(geoName),
                                 ff.literal(transformedGeom));
                         overQuery.setFilter(ff.and(ff.or(filter, dirtyFilter), ff.not(areaFilter)));
+//                        overQuery.setFilter(ff.and(ff.or(filter, dirtyFilter), areaFilter));
                     } else {
                         overQuery.setFilter(ff.and(dirtyFilter, ff.not(areaFilter)));
+//                        overQuery.setFilter(ff.and(dirtyFilter, areaFilter));
                     }
                 }
             } finally {
@@ -412,6 +420,7 @@ public abstract class BaseFeatureSourceOp<T> extends BaseOp<T, Query> {
                 fw = cacheManager.getCache().getFeatureWriter(getEntry().getTypeName(),
                         Transaction.AUTO_COMMIT);
                 while (fw.hasNext()) {
+                    fw.next();
                     fw.remove();
                 }
             } catch (IOException e) {
@@ -522,17 +531,17 @@ public abstract class BaseFeatureSourceOp<T> extends BaseOp<T, Query> {
                         final Object rl = ((Literal) re).getValue();
                         if (rl instanceof Geometry) {
                             Geometry g = (Geometry) rl;
-                            result = g.getEnvelopeInternal();
+                            result.expandToInclude(g.getEnvelopeInternal());
                         }
                     } else if (le instanceof Literal && re instanceof Literal) {
                         final Object ll = ((Literal) le).getValue();
                         final Object rl = ((Literal) re).getValue();
                         if (ll instanceof Geometry && rl instanceof PropertyName) {
                             final Geometry g = (Geometry) ll;
-                            result = g.getEnvelopeInternal();
+                            result.expandToInclude(g.getEnvelopeInternal());
                         } else if (ll instanceof PropertyName && rl instanceof Geometry) {
                             final Geometry g = (Geometry) rl;
-                            result = g.getEnvelopeInternal();
+                            result.expandToInclude(g.getEnvelopeInternal());
                         }
                     }
                     break;
