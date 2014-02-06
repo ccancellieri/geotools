@@ -1,9 +1,11 @@
-package org.geotools.data.cache.op;
+package org.geotools.data.cache.op.schema;
 
 import java.io.IOException;
 import java.sql.Timestamp;
 import java.util.Calendar;
 
+import org.geotools.data.cache.datastore.CacheManager;
+import org.geotools.data.cache.op.CachedOpStatus;
 import org.geotools.feature.NameImpl;
 import org.geotools.feature.simple.SimpleFeatureTypeBuilder;
 import org.geotools.feature.simple.SimpleSchema;
@@ -13,8 +15,8 @@ import org.opengis.feature.type.Name;
 
 public class EnrichedSchemaOp extends SchemaOp {
 
-    public EnrichedSchemaOp(CacheManager cacheManager, final String uniqueName) throws IOException {
-        super(cacheManager, uniqueName);
+    public EnrichedSchemaOp(CacheManager cacheManager, final CachedOpStatus<Name> status) throws IOException {
+        super(cacheManager, status);
     }
 
     public static String TIMESTAMP_NAME = "_TimeStamp_";
@@ -24,7 +26,7 @@ public class EnrichedSchemaOp extends SchemaOp {
     @Override
     public SimpleFeatureType updateCache(Name name) throws IOException {
 
-        verify(name);
+//        verify(name);
 
         final SimpleFeatureTypeBuilder b = new SimpleFeatureTypeBuilder();
 
@@ -62,7 +64,7 @@ public class EnrichedSchemaOp extends SchemaOp {
 
     @Override
     public SimpleFeatureType getCache(Name o) throws IOException {
-        verify(o);
+//        verify(o);
         return cacheManager.getCache().getSchema(o);
     }
 

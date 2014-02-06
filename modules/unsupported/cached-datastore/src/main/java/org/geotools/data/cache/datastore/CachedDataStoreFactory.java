@@ -28,8 +28,6 @@ import org.geotools.data.DataAccessFactory;
 import org.geotools.data.DataAccessFinder;
 import org.geotools.data.DataStore;
 import org.geotools.data.DataStoreFactorySpi;
-import org.geotools.data.cache.op.BaseOp;
-import org.geotools.data.cache.op.CacheManager;
 import org.geotools.data.cache.op.CachedOpSPI;
 import org.geotools.data.cache.utils.CachedOpSPIMapParam;
 import org.geotools.data.cache.utils.MapParam;
@@ -131,26 +129,16 @@ public class CachedDataStoreFactory extends AbstractDataStoreFactory implements 
         // DataStore source = repository.dataStore(new NameImpl(namespace, store));
         final DataStore source = (DataStore) getDataStore(sourceParams, sourceType);
 
-        //
-        // ExecutorService executor;
-        // int parallelism = lookup(PARALLELISM, params, Integer.class);
-        // if (parallelism <= 0) {
-        // executor = Executors.newCachedThreadPool();
-        // } else {
-        // executor = Executors.newFixedThreadPool(parallelism);
-        // }
-
         final String cacheType = lookup(CACHE_TYPE, params, String.class);
         final Map<String, Serializable> cacheParams = lookup(CACHE_PARAMS, params, Map.class);
 
         final DataStore cache = (DataStore) getDataStore(cacheParams, cacheType);
 
-        final Map<String, CachedOpSPI<?>> spiParams = lookup(CACHEDOPSPI_PARAMS, params,
+        final Map<String, CachedOpSPI<?,?,?>> spiParams = lookup(CACHEDOPSPI_PARAMS, params,
                 Map.class);
         
-        final CacheManager cacheManager = new CacheManager(source, cache,
-                createDataStoreUID(params), spiParams);
-
+//        final CacheManager cacheManager = new CacheManager(source, cache,
+//                createDataStoreUID(params), spiParams);
 
         // if (cache == null) {
         // CachedOpSPI<?> spi = new STRFeatureSourceOpSPI();
@@ -162,7 +150,7 @@ public class CachedDataStoreFactory extends AbstractDataStoreFactory implements 
         // return new CachedDataStore(props);
         // }
 
-        return new CachedDataStore(cacheManager);
+        return new CachedDataStore(source, cache, createDataStoreUID(params), spiParams);
     }
 
     public static String createDataStoreUID(Map<String, Serializable> params) throws IOException {

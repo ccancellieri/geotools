@@ -34,21 +34,22 @@ public class CacheUtils implements ApplicationContextAware {
     private static transient ApplicationContext context;
 
     @Autowired
-    private transient List<CachedOpSPI<BaseOp<?, ?>>> catalog;
+    private transient List<CachedOpSPI<BaseOp<?, ?>, ?, ?>> catalog;
 
-    public List<CachedOpSPI<BaseOp<?, ?>>> getCachedOps() {
+    public List<CachedOpSPI<BaseOp<?, ?>, ?, ?>> getCachedOps() {
         return catalog;
     }
 
-    public TreeSet<CachedOpSPI<BaseOp<?, ?>>> getCachedOpSPITree(Operation op) {
-        final TreeSet<CachedOpSPI<BaseOp<?, ?>>> tree = new TreeSet<CachedOpSPI<BaseOp<?, ?>>>(
-                new Comparator<CachedOpSPI<BaseOp<?, ?>>>() {
+    public TreeSet<CachedOpSPI<BaseOp<?, ?>, ?, ?>> getCachedOpSPITree(Operation op) {
+        final TreeSet<CachedOpSPI<BaseOp<?, ?>, ?, ?>> tree = new TreeSet<CachedOpSPI<BaseOp<?, ?>, ?, ?>>(
+                new Comparator<CachedOpSPI<BaseOp<?, ?>, ?, ?>>() {
                     @Override
-                    public int compare(CachedOpSPI<BaseOp<?, ?>> o1, CachedOpSPI<BaseOp<?, ?>> o2) {
+                    public int compare(CachedOpSPI<BaseOp<?, ?>, ?, ?> o1,
+                            CachedOpSPI<BaseOp<?, ?>, ?, ?> o2) {
                         return o1.priority() > o2.priority() ? 1 : -1;
                     }
                 });
-        for (CachedOpSPI<BaseOp<?, ?>> spi : getCachedOps()) {
+        for (CachedOpSPI<BaseOp<?, ?>, ?, ?> spi : getCachedOps()) {
             if (spi.getOp().equals(op)) {
                 tree.add(spi);
             }
@@ -56,8 +57,8 @@ public class CacheUtils implements ApplicationContextAware {
         return tree;
     }
 
-    public CachedOpSPI<BaseOp<?, ?>> getFirstCachedOpSPI(Operation op) {
-        final TreeSet<CachedOpSPI<BaseOp<?, ?>>> spiTree = getCachedOpSPITree(op);
+    public CachedOpSPI<BaseOp<?, ?>, ?, ?> getFirstCachedOpSPI(Operation op) {
+        final TreeSet<CachedOpSPI<BaseOp<?, ?>, ?, ?>> spiTree = getCachedOpSPITree(op);
         if (!spiTree.isEmpty()) {
             return spiTree.first();
         } else {

@@ -9,6 +9,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import org.geotools.data.DataAccessFactory.Param;
+import org.geotools.data.cache.op.CachedOp;
 import org.geotools.data.cache.op.CachedOpSPI;
 import org.opengis.util.InternationalString;
 
@@ -67,15 +68,16 @@ public class CachedOpSPIMapParam extends Param {
         return parseSPIMap(text);
     }
 
-    public static Map<String, CachedOpSPI<?>> parseSPIMap(String text) {
-        final Map<String, CachedOpSPI<?>> output = new HashMap<String, CachedOpSPI<?>>();
+    public static <T, K> Map<String, CachedOpSPI<CachedOp<K, T>, K, T>> parseSPIMap(String text) {
+        final Map<String, CachedOpSPI<CachedOp<K, T>, K, T>> output = new HashMap<String, CachedOpSPI<CachedOp<K, T>, K, T>>();
         text = text.substring(1, text.length() - 1);
         for (String pair : text.split(",")) {
             final String[] kv = pair.split("=");
             if (kv.length > 1 && kv[1].length() > 0) {
-                CachedOpSPI<?> spi;
+                CachedOpSPI<CachedOp<K, T>, K, T> spi;
                 try {
-                    spi = (CachedOpSPI<?>) Class.forName(kv[1].trim()).newInstance();
+                    spi = (CachedOpSPI<CachedOp<K, T>, K, T>) Class.forName(kv[1].trim())
+                            .newInstance();
                     output.put(kv[0].trim(), spi);
                 } catch (InstantiationException e) {
                     LOGGER.log(Level.SEVERE, e.getMessage(), e);
@@ -91,17 +93,17 @@ public class CachedOpSPIMapParam extends Param {
 
     @Override
     public String text(Object value) {
-        return toText((Map<String, CachedOpSPI<?>>) value);
+        return toText((Map<String, CachedOpSPI<?, ?, ?>>) value);
     }
 
-    public static String toText(Map<String, CachedOpSPI<?>> value) {
+    public static <T, K> String toText(Map<String, CachedOpSPI<?, ?, ?>> value) {
         if (value == null)
             throw new IllegalArgumentException("Unable to convert a null map");
         final StringWriter sw = new StringWriter();
         sw.write('{');
-        final Iterator<Entry<String, CachedOpSPI<?>>> it = value.entrySet().iterator();
+        final Iterator<Entry<String, CachedOpSPI<?, ?, ?>>> it = value.entrySet().iterator();
         if (it.hasNext()) {
-            Entry<String, CachedOpSPI<?>> e = it.next();
+            Entry<String, CachedOpSPI<?, ?, ?>> e = it.next();
             if (e.getValue() != null) {
                 sw.write(e.getKey());
                 sw.write('=');
@@ -109,7 +111,7 @@ public class CachedOpSPIMapParam extends Param {
             }
         }
         while (it.hasNext()) {
-            Entry<String, CachedOpSPI<?>> e = it.next();
+            Entry<String, CachedOpSPI<?, ?, ?>> e = it.next();
             if (e.getValue() != null) {
                 sw.write(',');
                 sw.write(e.getKey());

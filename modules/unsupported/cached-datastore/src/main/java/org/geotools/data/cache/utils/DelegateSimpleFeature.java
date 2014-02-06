@@ -5,10 +5,10 @@ import java.util.NoSuchElementException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import org.geotools.data.cache.op.CacheManager;
-import org.geotools.data.cache.op.NextOp;
+import org.geotools.data.cache.datastore.CacheManager;
 import org.geotools.data.cache.op.Operation;
-import org.geotools.data.cache.op.SchemaOp;
+import org.geotools.data.cache.op.next.NextOp;
+import org.geotools.data.cache.op.schema.SchemaOp;
 import org.geotools.data.simple.SimpleFeatureReader;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;

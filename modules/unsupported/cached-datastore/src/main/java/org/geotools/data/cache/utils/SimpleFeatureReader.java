@@ -3,7 +3,7 @@ package org.geotools.data.cache.utils;
 import java.io.IOException;
 import java.util.NoSuchElementException;
 
-import org.geotools.data.FeatureWriter;
+import org.geotools.data.FeatureReader;
 import org.geotools.data.Query;
 import org.geotools.data.Transaction;
 import org.geotools.data.cache.datastore.CacheManager;
@@ -12,30 +12,29 @@ import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.feature.type.Name;
 
-public class SimpleFeatureUpdaterReader extends DelegateSimpleFeature {
+public class SimpleFeatureReader extends DelegateSimpleFeature {
 
     private final ContentEntry entry;
 
-//    private final Transaction transaction;
+    // private final Transaction transaction;
 
-    private FeatureWriter<SimpleFeatureType, SimpleFeature> fw = null;
+    private FeatureReader<SimpleFeatureType, SimpleFeature> fr = null;
 
-    public SimpleFeatureUpdaterReader(ContentEntry entry, final Query query,
+    public SimpleFeatureReader(ContentEntry entry, final Query query,
             final CacheManager cacheManager) throws IOException {
         this(entry, query, cacheManager, Transaction.AUTO_COMMIT);
     }
 
-    public SimpleFeatureUpdaterReader(ContentEntry entry, final Query query,
+    public SimpleFeatureReader(ContentEntry entry, final Query query,
             final CacheManager cacheManager, final Transaction transaction) throws IOException {
 
         super(cacheManager);
 
         this.entry = entry;
 
-//        this.transaction = transaction;
+        // this.transaction = transaction;
 
-        fw = cacheManager.getCache().getFeatureWriter(query.getTypeName(), query.getFilter(),
-                transaction);
+        fr = cacheManager.getCache().getFeatureReader(query, transaction);
     }
 
     @Override
@@ -46,27 +45,25 @@ public class SimpleFeatureUpdaterReader extends DelegateSimpleFeature {
     @Override
     protected SimpleFeature getNextInternal() throws IllegalArgumentException,
             NoSuchElementException, IOException {
-        return fw.next();
+        return fr.next();
     }
 
     @Override
     public SimpleFeature next() throws IOException, IllegalArgumentException,
             NoSuchElementException {
-        final SimpleFeature df = super.next();
-        fw.write();
-        return df;
+        return super.next();
     }
 
     @Override
     public boolean hasNext() throws IOException {
-        return fw.hasNext();
+        return fr.hasNext();
     }
 
     @Override
     public void close() throws IOException {
-        if (fw != null) {
+        if (fr != null) {
             try {
-                fw.close();
+                fr.close();
             } catch (IOException e) {
             }
         }

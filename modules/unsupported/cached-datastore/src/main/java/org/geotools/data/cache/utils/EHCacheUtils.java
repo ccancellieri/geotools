@@ -10,6 +10,8 @@ import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.cache.Cache;
+import org.springframework.cache.Cache.ValueWrapper;
+import org.springframework.cache.ehcache.EhCacheCache;
 import org.springframework.cache.ehcache.EhCacheCacheManager;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
@@ -32,9 +34,47 @@ public class EHCacheUtils implements ApplicationContextAware, DisposableBean {
     private transient static ApplicationContext context;
 
     @Autowired
-    private transient org.springframework.cache.CacheManager manager;
+    private transient static org.springframework.cache.CacheManager manager;
+    
 
-    public org.springframework.cache.Cache getCache(String name) {
+    public static final String CACHEMANAGER_STORE_NAME = "CacheManagerStatus";
+
+    // storage for the cache status
+    private final transient static EhCacheCache ehcache = EHCacheUtils.getCacheUtils().getCacheOfType(
+            CACHEMANAGER_STORE_NAME, EhCacheCache.class);
+
+    public static <K> void evict(K key) {
+        // evict
+        if (LOGGER.isLoggable(Level.INFO)) {
+            LOGGER.info("Evicting " + key + " from storage");
+        }
+        ehcache.evict(key.hashCode());
+    }
+
+    public static <K, T> void store(K key, T value) {
+        if (LOGGER.isLoggable(Level.INFO)) {
+            LOGGER.info("Storing " + key + " into cache using (" + key.hashCode() + ")");
+        }
+        ehcache.put(key.hashCode(), value);
+    }
+
+    public static <K, T> T load(K key) {
+        if (LOGGER.isLoggable(Level.INFO)) {
+            LOGGER.info("Loading " + key + " from cache (" + key.hashCode() + ")");
+        }
+        final ValueWrapper cachedStatus = ehcache.get(key.hashCode());
+        if (cachedStatus != null) {
+            return (T) cachedStatus.get();
+        } else {
+            if (LOGGER.isLoggable(Level.WARNING)) {
+                LOGGER.log(Level.WARNING, "No entry load from cache for key: " + key);
+            }
+        }
+        return null;
+    }
+    
+
+    public static org.springframework.cache.Cache getCache(String name) {
         if (manager == null) {
             LOGGER.log(Level.SEVERE, "Unable to get a valid list of context");
             return null;
@@ -42,7 +82,7 @@ public class EHCacheUtils implements ApplicationContextAware, DisposableBean {
         return manager.getCache(name);
     }
 
-    public <T extends Cache> T getCacheOfType(String name, Class<T> clazz) {
+    public static <T extends Cache> T getCacheOfType(String name, Class<T> clazz) {
         Cache c = getCache(name);
         if (c != null) {
             return (T) c;
@@ -51,7 +91,7 @@ public class EHCacheUtils implements ApplicationContextAware, DisposableBean {
         }
     }
 
-    public org.springframework.cache.CacheManager getCacheManager() {
+    public static org.springframework.cache.CacheManager getCacheManager() {
         if (manager == null) {
             LOGGER.log(Level.SEVERE, "Unable to get a valid list of context");
             return null;

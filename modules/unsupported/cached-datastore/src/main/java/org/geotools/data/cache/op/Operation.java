@@ -9,6 +9,6 @@ public enum Operation {
     typeNames, featureSource,
 
     // FeatureReader
-    featureType, hasNext, next;
+    featureReader, featureType, hasNext, next;
 
 }

@@ -1,15 +1,21 @@
-package org.geotools.data.cache.op;
+package org.geotools.data.cache.op.typename;
 
 import java.io.IOException;
 import java.util.List;
 
+import org.geotools.data.cache.datastore.CacheManager;
+import org.geotools.data.cache.op.BaseOp;
+import org.geotools.data.cache.op.CachedOpStatus;
+import org.geotools.data.cache.op.Operation;
+import org.geotools.data.cache.op.schema.SchemaOp;
 import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.feature.type.Name;
 
-public class TypeNamesOp extends BaseOp<List<Name>, String> {
+public class TypeNamesOp extends BaseOp<String, List<Name>> {
 
-    public TypeNamesOp(CacheManager cacheManager, final String uniqueName) throws IOException {
-        super(cacheManager, uniqueName);
+    public TypeNamesOp(CacheManager cacheManager, final CachedOpStatus<String> status)
+            throws IOException {
+        super(cacheManager, status);
     }
 
     @Override
@@ -39,13 +45,4 @@ public class TypeNamesOp extends BaseOp<List<Name>, String> {
         return names;
     }
 
-    @Override
-    public boolean isDirty(String key) throws IOException {
-        return false;
-    }
-
-    @Override
-    public void setDirty(String query, boolean value) throws IOException {
-        throw new UnsupportedOperationException();
-    }
 }

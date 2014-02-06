@@ -3,7 +3,7 @@ package org.geotools.data.cache.utils;
 import java.io.IOException;
 import java.util.NoSuchElementException;
 
-import org.geotools.data.cache.op.CacheManager;
+import org.geotools.data.cache.datastore.CacheManager;
 import org.geotools.data.simple.SimpleFeatureCollection;
 import org.geotools.data.simple.SimpleFeatureIterator;
 import org.opengis.feature.simple.SimpleFeature;

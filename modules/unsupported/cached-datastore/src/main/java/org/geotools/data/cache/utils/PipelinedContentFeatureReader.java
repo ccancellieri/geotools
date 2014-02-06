@@ -7,19 +7,25 @@ import org.geotools.data.FeatureReader;
 import org.geotools.data.FeatureWriter;
 import org.geotools.data.Query;
 import org.geotools.data.Transaction;
-import org.geotools.data.cache.op.BaseFeatureSourceOp;
-import org.geotools.data.cache.op.CacheManager;
+import org.geotools.data.cache.datastore.CacheManager;
+import org.geotools.data.cache.op.Operation;
+import org.geotools.data.cache.op.feature.BaseFeatureOp;
+import org.geotools.data.cache.op.feature.BaseFeatureOpStatus;
+import org.geotools.data.simple.SimpleFeatureReader;
 import org.geotools.data.store.ContentEntry;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.feature.type.Name;
+import org.opengis.filter.Filter;
+import org.opengis.referencing.operation.MathTransform;
 
+import com.vividsolutions.jts.geom.Envelope;
 import com.vividsolutions.jts.geom.Geometry;
 
 public class PipelinedContentFeatureReader extends DelegateSimpleFeature implements
         FeatureReader<SimpleFeatureType, SimpleFeature> {
 
-    private final ContentEntry entry;
+//    private final ContentEntry entry;
 
     private final Transaction transaction;
 
@@ -27,31 +33,50 @@ public class PipelinedContentFeatureReader extends DelegateSimpleFeature impleme
 
     private FeatureReader<SimpleFeatureType, SimpleFeature> fr = null;
 
-    private SimpleFeatureUpdaterReader fwDiff = null;
+    private FeatureReader<SimpleFeatureType, SimpleFeature> frDiff = null;
 
-    private BaseFeatureSourceOp<?> featureSourceOp = null;
+    private final BaseFeatureOp<?> featureSourceOp;
+
+    private final BaseFeatureOp<SimpleFeatureReader> featureReaderOp;
+
+    private final BaseFeatureOpStatus status;
 
     private Query query = null;
 
-    public PipelinedContentFeatureReader(ContentEntry entry, final Query query,
-            final CacheManager cacheManager, final BaseFeatureSourceOp<Query> featureSourceOp)
-            throws IOException {
-        this(entry, query, cacheManager, featureSourceOp, Transaction.AUTO_COMMIT);
+    public PipelinedContentFeatureReader(final BaseFeatureOpStatus status, final Query query,
+            final CacheManager cacheManager) throws IOException {
+        this(status, query, cacheManager, Transaction.AUTO_COMMIT);
     }
 
-    public PipelinedContentFeatureReader(ContentEntry entry, final Query query,
-            final CacheManager cacheManager, final BaseFeatureSourceOp<?> featureSourceOp,
-            final Transaction transaction) throws IOException {
+    public PipelinedContentFeatureReader(final BaseFeatureOpStatus status, final Query query,
+            final CacheManager cacheManager, final Transaction transaction) throws IOException {
         super(cacheManager);
-        this.entry = entry;
+//        this.entry = entry;
+        this.status = status;
         this.query = query;
-        this.featureSourceOp = featureSourceOp;
+        // featureSource
+        this.featureSourceOp = cacheManager.getCachedOpOfType(Operation.featureSource,
+                BaseFeatureOp.class);
+        // featureReader
+        this.featureReaderOp = cacheManager.getCachedOpOfType(Operation.featureReader,
+                BaseFeatureOp.class);
+//
+//        if (featureReaderOp != null) {
+//            status = featureReaderOp.getStatus();
+//        } else if (featureSourceOp != null) {
+//            status = featureSourceOp.getStatus();
+//        } else {
+//            status = new FeatureStatus();
+//            status.setSchema(getFeatureType());
+//            status.setEntry(entry);
+//        }
+
         this.transaction = transaction;
     }
 
     @Override
     protected Name getFeatureTypeName() {
-        return entry.getName();
+        return status.getEntry().getName();
     }
 
     @Override
@@ -79,10 +104,10 @@ public class PipelinedContentFeatureReader extends DelegateSimpleFeature impleme
 
             }
         } else { // if (frDiff.hasNext()) {
-            if (!fwDiff.hasNext()) {
+            if (!frDiff.hasNext()) {
                 throw new IOException("missing feature in cache, this may never happen");
             }
-            df = fwDiff.next();
+            df = frDiff.next();
         }
         return df;
     }
@@ -101,31 +126,61 @@ public class PipelinedContentFeatureReader extends DelegateSimpleFeature impleme
         }
 
         // set as cached
-        featureSourceOp.setCached((Geometry) df.getDefaultGeometry(), true);
-        featureSourceOp.setDirty(query, false); // TODO
+        status.setCached((Geometry) df.getDefaultGeometry(), true);
+        // featureSourceOp.setDirty(query, false); // TODO
         return df;
 
     }
 
     @Override
     public boolean hasNext() throws IOException {
-        if (fr == null || fwDiff == null) {
-            final Query cacheQuery = featureSourceOp.queryCachedAreas(query);
-            final Query sourceQuery = featureSourceOp.querySource(query);
-            if (fr == null) {
+        if (fr == null || frDiff == null) {
+            Query cacheQuery = null;
+            Query sourceQuery = null;
+            try {
+                final Filter[] sF = BaseFeatureOpStatus.splitFilters(query, status.getSchema());
+                final Envelope env = BaseFeatureOpStatus.getEnvelope(sF[1]);
+                MathTransform transform = status.getTransformation(query
+                        .getCoordinateSystemReproject());
+                final Geometry queryGeom = status.getGeometry(env, transform);
+                final String geoName = status.getGeometryName();
+                final String typeName = query.getTypeName();
+                cacheQuery = status.queryAreas(typeName, geoName, queryGeom, transform, true, null);
+                sourceQuery = status.queryAreas(typeName, geoName, queryGeom, transform, false,
+                        query.getFilter());
+                if (fr == null) {
 
-                fr = cacheManager.getSource().getFeatureReader(sourceQuery, transaction);
+                    fr = cacheManager.getSource().getFeatureReader(sourceQuery, transaction);
 
-                fw = cacheManager.getCache().getFeatureWriter(getFeatureTypeName().getLocalPart(),
-                        sourceQuery.getFilter(), transaction);
+                    fw = cacheManager.getCache().getFeatureWriter(
+                            getFeatureTypeName().getLocalPart(), sourceQuery.getFilter(),
+                            transaction);
 
+                }
+                if (frDiff == null) {
+                    if (featureReaderOp != null) {
+                        if (!featureReaderOp.isCached(query) || featureReaderOp.isDirty(query)) {
+                            frDiff = featureReaderOp.updateCache(query);
+                        } else {
+                            frDiff = featureReaderOp.getCache(query);
+                        }
+
+                    } else {
+                        frDiff = new DelegateSimpleFeatureReader(cacheManager, cacheManager
+                                .getCache().getFeatureReader(cacheQuery, transaction),
+                                status.getSchema());
+                    }
+                    // frDiff = new SimpleFeatureUpdaterReader(entry, cacheQuery, cacheManager,
+                    // transaction);
+
+                }
+            } catch (IOException e) {
+                LOGGER.severe(e.getLocalizedMessage());
+                return false;
             }
-            if (fwDiff == null) {
-                fwDiff = new SimpleFeatureUpdaterReader(entry, cacheQuery, cacheManager,
-                        transaction);
-            }
+
         }
-        boolean notEnd = fr.hasNext() || fwDiff.hasNext();
+        boolean notEnd = fr.hasNext() || frDiff.hasNext();
         // if (!notEnd){
         // featureSourceOp.setCached(query, true); //TODO
         // featureSourceOp.setDirty(query, false); //TODO
@@ -147,9 +202,9 @@ public class PipelinedContentFeatureReader extends DelegateSimpleFeature impleme
             } catch (IOException e) {
             }
         }
-        if (fwDiff != null) {
+        if (frDiff != null) {
             try {
-                fwDiff.close();
+                frDiff.close();
             } catch (IOException e) {
             }
         }

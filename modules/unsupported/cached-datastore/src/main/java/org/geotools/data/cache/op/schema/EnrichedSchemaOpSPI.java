@@ -1,8 +1,12 @@
-package org.geotools.data.cache.op;
+package org.geotools.data.cache.op.schema;
 
 import java.io.IOException;
 import java.io.Serializable;
 
+import org.geotools.data.cache.datastore.CacheManager;
+import org.geotools.data.cache.op.CachedOpStatus;
+import org.geotools.data.cache.op.Operation;
+import org.opengis.feature.type.Name;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -17,8 +21,8 @@ public class EnrichedSchemaOpSPI extends SchemaOpSPI implements Serializable {
     }
 
     @Override
-    protected SchemaOp createInstance(CacheManager cacheManager, final String uniqueName) throws IOException {
-        return new EnrichedSchemaOp(cacheManager, uniqueName);
+    public SchemaOp createInstance(CacheManager cacheManager, final CachedOpStatus<Name> status) throws IOException {
+        return new EnrichedSchemaOp(cacheManager, status);
     }
 
     @Override

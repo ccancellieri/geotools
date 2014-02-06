@@ -8,11 +8,12 @@ import java.util.logging.Logger;
 import org.geotools.data.FeatureReader;
 import org.geotools.data.Query;
 import org.geotools.data.Transaction;
-import org.geotools.data.cache.op.BaseFeatureSourceOp;
-import org.geotools.data.cache.op.CacheManager;
-import org.geotools.data.cache.op.CachedOp;
+import org.geotools.data.cache.datastore.CacheManager;
+import org.geotools.data.cache.op.BaseOp;
 import org.geotools.data.cache.op.Operation;
-import org.geotools.data.cache.op.SchemaOp;
+import org.geotools.data.cache.op.feature.BaseFeatureOp;
+import org.geotools.data.cache.op.feature.BaseFeatureOpStatus;
+import org.geotools.data.cache.op.schema.SchemaOp;
 import org.geotools.data.simple.SimpleFeatureSource;
 import org.geotools.data.store.ContentEntry;
 import org.geotools.data.store.ContentFeatureSource;
@@ -33,42 +34,102 @@ public class DelegateContentFeatureSource extends ContentFeatureSource {
     private final transient Logger LOGGER = org.geotools.util.logging.Logging.getLogger(getClass()
             .getPackage().getName());
 
-    // source
-    private final SimpleFeatureSource delegate;
-
     protected final CacheManager cacheManager;
 
-    final SchemaOp schemaOp;
+    private final SchemaOp schemaOp;
 
-    public SimpleFeatureSource getDelegate() {
-        return delegate;
+    private final BaseFeatureOp<SimpleFeatureSource> featureSourceOp;
+
+    private final BaseFeatureOp<FeatureReader<SimpleFeatureType, SimpleFeature>> featureReaderOp;
+
+    private final BaseFeatureOp<Integer> countOp;
+
+    private final BaseOp<Query, ReferencedEnvelope> boundsOp;
+
+    // private final BaseFeatureOpStatus status;
+
+    // private final boolean sharedStatus;
+
+    /**
+     * 
+     * @param cacheManager
+     * @param query
+     * @param status
+     * @throws IllegalArgumentException
+     * @throws IOException
+     */
+    public DelegateContentFeatureSource(final CacheManager cacheManager, final Query query,
+            final BaseFeatureOpStatus status) throws IllegalArgumentException, IOException {
+        this(cacheManager, query, status.getEntry());// , status, true);
     }
 
-    public DelegateContentFeatureSource(final CacheManager cacheManager, final ContentEntry entry,
-            final Query query) throws IllegalArgumentException, IOException {
+    /**
+     * 
+     * @param cacheManager
+     * @param query
+     * @param status
+     * @param sharedStatus if true the passed status will be shared between BaseFeatureOp(erations).
+     * @throws IllegalArgumentException
+     * @throws IOException
+     */
+    public DelegateContentFeatureSource(final CacheManager cacheManager, final Query query,
+            final ContentEntry entry) throws IllegalArgumentException, IOException {
         super(entry, query);
         if (cacheManager == null)
             throw new IllegalArgumentException(
                     "Unable to initialize a cache manager !=null is needed");
 
+        // schema
+        this.schemaOp = cacheManager.getCachedOpOfType(Operation.schema, SchemaOp.class);
+
         this.cacheManager = cacheManager;
 
-        this.delegate = cacheManager.getSource().getFeatureSource(entry.getTypeName());
+        // status
+        // this.status = status;
+        // shared
+        // this.sharedStatus = sharedStatus;
 
-        this.schemaOp = cacheManager.getCachedOpOfType(Operation.schema, SchemaOp.class);
+        // featureSource
+        this.featureSourceOp = cacheManager.getCachedOpOfType(Operation.featureSource,
+                BaseFeatureOp.class);
+        // featureReader
+        this.featureReaderOp = cacheManager.getCachedOpOfType(Operation.featureReader,
+                BaseFeatureOp.class);
+        // count
+        this.countOp = cacheManager.getCachedOpOfType(Operation.count, BaseFeatureOp.class);
+        // bounds
+        this.boundsOp = cacheManager.getCachedOpOfType(Operation.bounds, BaseOp.class); // TODO
+    }
+
+    /**
+     * Initialize shared status for feature related operation
+     */
+    protected void init() {
+        // if (sharedStatus) {
+        // // featureSource
+        // if (featureSourceOp != null) {
+        // featureSourceOp.setStatus(this.status);
+        // }
+        // // featureReader
+        // if (featureSourceOp != null) {
+        // featureSourceOp.setStatus(this.status);
+        // }
+        // // count
+        // if (countOp != null) {
+        // countOp.setStatus(this.status);
+        // }
+        // }
     }
 
     @Override
     protected ReferencedEnvelope getBoundsInternal(Query query) throws IOException {
-        final CachedOp<ReferencedEnvelope, Query> op = cacheManager.getCachedOpOfType(
-                Operation.bounds, CachedOp.class);
         ReferencedEnvelope env = null;
-        if (op != null) {
+        if (boundsOp != null) {
             try {
-                if (!op.isCached(query) || op.isDirty(query)) {
-                    env = op.updateCache(query);
+                if (!boundsOp.isCached(query) || boundsOp.isDirty(query)) {
+                    env = boundsOp.updateCache(query);
                 } else {
-                    env = op.getCache(query);
+                    env = boundsOp.getCache(query);
                 }
             } catch (IOException e) {
                 if (LOGGER.isLoggable(Level.SEVERE)) {
@@ -79,24 +140,20 @@ public class DelegateContentFeatureSource extends ContentFeatureSource {
         if (env != null) {
             return env;
         } else {
-            return delegate.getBounds(query);
+            return cacheManager.getSource().getFeatureSource(entry.getTypeName()).getBounds(query);
         }
 
     }
 
     @Override
     protected int getCountInternal(Query query) throws IOException {
-        final BaseFeatureSourceOp<Integer> op = cacheManager.getCachedOpOfType(Operation.count,
-                BaseFeatureSourceOp.class);
         Integer count = null;
-        if (op != null) {
-            op.setEntry(getEntry());
-            op.setSchema(getSchema());
+        if (countOp != null) {
             try {
-                if (!op.isCached(query) || op.isDirty(query)) {
-                    count = op.updateCache(query);
+                if (!countOp.isCached(query) || countOp.isDirty(query)) {
+                    count = countOp.updateCache(query);
                 } else {
-                    count = op.getCache(query);
+                    count = countOp.getCache(query);
                 }
             } catch (IOException e) {
                 if (LOGGER.isLoggable(Level.SEVERE)) {
@@ -107,7 +164,7 @@ public class DelegateContentFeatureSource extends ContentFeatureSource {
         if (count != null) {
             return count;
         } else {
-            count = delegate.getCount(query);
+            count = cacheManager.getSource().getFeatureSource(entry.getTypeName()).getCount(query);
 
             if (count != -1) {
                 // optimization worked, return maxFeatures if count is
@@ -149,42 +206,42 @@ public class DelegateContentFeatureSource extends ContentFeatureSource {
     @Override
     protected FeatureReader<SimpleFeatureType, SimpleFeature> getReaderInternal(Query query)
             throws IOException {
-        final BaseFeatureSourceOp<SimpleFeatureSource> op = cacheManager.getCachedOpOfType(
-                Operation.featureSource, BaseFeatureSourceOp.class);
-        if (op != null) {
-            op.setEntry(getEntry());
-            op.setSchema(getSchema());
-            return new PipelinedContentFeatureReader(entry, query, cacheManager, op, transaction);
-//            try {
-//                if (!op.isCached(query) || op.isDirty(query)) {
-//
-//                    final SimpleFeatureSource source = op.updateCache(query);
-//                    if (source != null) {
-//                        return new SimpleFeatureCollectionReader(cacheManager, getAbsoluteSchema(),
-//                                source.getFeatures(query));
-//                    } else {
-//                        op.setDirty(query, true);
-//                        throw new IOException(
-//                                "Unable to create a simple feature source from the passed query: "
-//                                        + query);
-//                    }
-//                }
-//                return new SimpleFeatureUpdaterReader(getEntry(), query, cacheManager,
-//                        Transaction.AUTO_COMMIT);// new SimpleFeatureCollectionReader(cacheManager, getAbsoluteSchema(), op
-//                // .getCache(query).getFeatures());
-//            } catch (IOException e) {
-//                if (LOGGER.isLoggable(Level.SEVERE)) {
-//                    LOGGER.log(Level.SEVERE, e.getLocalizedMessage(), e);
-//                }
-//                throw e;
-//            }
+        if (featureSourceOp != null) {
+            try {
+                if (!featureSourceOp.isCached(query) || featureSourceOp.isDirty(query)) {
+
+                    final SimpleFeatureSource source = featureSourceOp.updateCache(query);
+                    if (source != null) {
+                        return new SimpleFeatureCollectionReader(cacheManager, getAbsoluteSchema(),
+                                source.getFeatures(query));
+                    } else {
+                        featureSourceOp.setDirty(query, true);
+                        throw new IOException(
+                                "Unable to create a simple feature source from the passed query: "
+                                        + query);
+                    }
+                }
+                if (featureReaderOp != null) {
+                    if (!featureReaderOp.isCached(query) || featureReaderOp.isDirty(query)) {
+                        return featureReaderOp.updateCache(query);
+                    } else {
+                        featureReaderOp.getCache(query);
+                    }
+                }
+            } catch (IOException e) {
+                if (LOGGER.isLoggable(Level.SEVERE)) {
+                    LOGGER.log(Level.SEVERE, e.getLocalizedMessage(), e);
+                }
+                throw e;
+            }
         }
         if (LOGGER.isLoggable(Level.WARNING)) {
             LOGGER.log(Level.WARNING, "No cached operation is found: " + Operation.featureSource);
         }
-
-        return new SimpleFeatureCollectionReader(cacheManager, getSchema(),
-                delegate.getFeatures(query));
+        return new DelegateSimpleFeatureReader(cacheManager, cacheManager.getSource()
+                .getFeatureReader(query, transaction), getSchema());
+        // return new SimpleFeatureCollectionReader(cacheManager, getSchema(),
+        // delegate.getFeatures(query));
     }
 
     @Override
@@ -208,7 +265,7 @@ public class DelegateContentFeatureSource extends ContentFeatureSource {
         if (schema != null) {
             return schema;
         } else {
-            return delegate.getSchema();
+            return cacheManager.getSource().getSchema(entry.getTypeName());
         }
     }
 

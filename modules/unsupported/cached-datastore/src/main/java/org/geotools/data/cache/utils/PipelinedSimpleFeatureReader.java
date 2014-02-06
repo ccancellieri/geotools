@@ -2,7 +2,7 @@ package org.geotools.data.cache.utils;
 
 import java.io.IOException;
 
-import org.geotools.data.cache.op.CacheManager;
+import org.geotools.data.cache.datastore.CacheManager;
 import org.geotools.data.simple.SimpleFeatureReader;
 import org.opengis.feature.simple.SimpleFeatureType;
 

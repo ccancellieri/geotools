@@ -1,8 +1,12 @@
-package org.geotools.data.cache.op;
+package org.geotools.data.cache.op.next;
 
 import java.io.IOException;
 import java.io.Serializable;
 
+import org.geotools.data.cache.datastore.CacheManager;
+import org.geotools.data.cache.op.CachedOpStatus;
+import org.geotools.data.cache.op.Operation;
+import org.opengis.feature.simple.SimpleFeature;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -17,9 +21,8 @@ public class EnrichedNextOpSPI extends NextOpSPI implements Serializable {
     }
 
     @Override
-    protected NextOp createInstance(CacheManager cacheManager, final String uniqueName)
-            throws IOException {
-        return new EnrichedNextOp(cacheManager, uniqueName);
+    public NextOp createInstance(CacheManager cacheManager, final CachedOpStatus<SimpleFeature> status) throws IOException {
+        return new EnrichedNextOp(cacheManager, status);
     }
 
     @Override
