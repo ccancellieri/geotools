@@ -29,6 +29,7 @@ import org.geotools.data.DataAccessFinder;
 import org.geotools.data.DataStore;
 import org.geotools.data.DataStoreFactorySpi;
 import org.geotools.data.cache.op.CachedOpSPI;
+import org.geotools.data.cache.op.CachedOpStatus;
 import org.geotools.data.cache.utils.CachedOpSPIMapParam;
 import org.geotools.data.cache.utils.MapParam;
 import org.geotools.util.KVP;
@@ -134,11 +135,11 @@ public class CachedDataStoreFactory extends AbstractDataStoreFactory implements 
 
         final DataStore cache = (DataStore) getDataStore(cacheParams, cacheType);
 
-        final Map<String, CachedOpSPI<?,?,?>> spiParams = lookup(CACHEDOPSPI_PARAMS, params,
-                Map.class);
-        
-//        final CacheManager cacheManager = new CacheManager(source, cache,
-//                createDataStoreUID(params), spiParams);
+        final Map<String, CachedOpSPI<CachedOpStatus<?>, ?, ?, ?>> spiParams = lookup(
+                CACHEDOPSPI_PARAMS, params, Map.class);
+
+        // final CacheManager cacheManager = new CacheManager(source, cache,
+        // createDataStoreUID(params), spiParams);
 
         // if (cache == null) {
         // CachedOpSPI<?> spi = new STRFeatureSourceOpSPI();

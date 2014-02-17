@@ -8,7 +8,7 @@ import org.geotools.data.cache.op.BaseOp;
 import org.geotools.data.cache.op.CachedOpStatus;
 import org.opengis.feature.simple.SimpleFeature;
 
-public class NextOp extends BaseOp<SimpleFeature, SimpleFeature> {
+public class NextOp extends BaseOp<CachedOpStatus<SimpleFeature>, SimpleFeature, SimpleFeature> {
 
     protected final transient Logger LOGGER = org.geotools.util.logging.Logging
             .getLogger(getClass().getPackage().getName());

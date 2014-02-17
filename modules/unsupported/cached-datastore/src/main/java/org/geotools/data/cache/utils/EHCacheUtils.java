@@ -5,9 +5,11 @@ import java.util.logging.Logger;
 
 import net.sf.ehcache.CacheManager;
 
+import org.geotools.util.logging.LoggerAdapter;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.cache.Cache;
 import org.springframework.cache.Cache.ValueWrapper;
@@ -20,28 +22,26 @@ import org.springframework.stereotype.Component;
 
 @Component(EHCacheUtils.BEAN_NAME)
 @Scope(ConfigurableBeanFactory.SCOPE_SINGLETON)
-public class EHCacheUtils implements ApplicationContextAware, DisposableBean {
+public class EHCacheUtils implements ApplicationContextAware, DisposableBean, BeanPostProcessor {
 
-    private final static transient Logger LOGGER = org.geotools.util.logging.Logging
+    private final static transient Logger LOGGER = LoggerAdapter
             .getLogger("org.geotools.data.cache.utils.EHCacheUtils");
 
     public final static String BEAN_NAME = "cached-datastore-ehCacheUtils";
-    
+
     static {
-        System.setProperty(CacheManager.ENABLE_SHUTDOWN_HOOK_PROPERTY,"true");
+        System.setProperty(CacheManager.ENABLE_SHUTDOWN_HOOK_PROPERTY, "true");
     }
 
     private transient static ApplicationContext context;
 
     @Autowired
-    private transient static org.springframework.cache.CacheManager manager;
-    
+    public org.springframework.cache.CacheManager manager;
 
     public static final String CACHEMANAGER_STORE_NAME = "CacheManagerStatus";
 
     // storage for the cache status
-    private final transient static EhCacheCache ehcache = EHCacheUtils.getCacheUtils().getCacheOfType(
-            CACHEMANAGER_STORE_NAME, EhCacheCache.class);
+    private transient static EhCacheCache ehcache;
 
     public static <K> void evict(K key) {
         // evict
@@ -72,9 +72,15 @@ public class EHCacheUtils implements ApplicationContextAware, DisposableBean {
         }
         return null;
     }
-    
 
-    public static org.springframework.cache.Cache getCache(String name) {
+    public static void flush() {
+        if (LOGGER.isLoggable(Level.INFO)) {
+            LOGGER.info("Flushing cache");
+        }
+        ehcache.getNativeCache().flush();
+    }
+
+    private org.springframework.cache.Cache getCache(String name) {
         if (manager == null) {
             LOGGER.log(Level.SEVERE, "Unable to get a valid list of context");
             return null;
@@ -82,22 +88,21 @@ public class EHCacheUtils implements ApplicationContextAware, DisposableBean {
         return manager.getCache(name);
     }
 
-    public static <T extends Cache> T getCacheOfType(String name, Class<T> clazz) {
-        Cache c = getCache(name);
-        if (c != null) {
-            return (T) c;
-        } else {
+    private <T extends Cache> T getCacheOfType(String name, Class<T> clazz) {
+        final Cache c = getCache(name);
+        if (c == null) {
             return null;
         }
+        return (T) c;
     }
 
-    public static org.springframework.cache.CacheManager getCacheManager() {
-        if (manager == null) {
-            LOGGER.log(Level.SEVERE, "Unable to get a valid list of context");
-            return null;
-        }
-        return manager;
-    }
+    // public org.springframework.cache.CacheManager getCacheManager() {
+    // if (manager == null) {
+    // LOGGER.log(Level.SEVERE, "Unable to get a valid list of context");
+    // return null;
+    // }
+    // return manager;
+    // }
 
     public static EHCacheUtils getCacheUtils() {
         if (context != null) {
@@ -111,6 +116,7 @@ public class EHCacheUtils implements ApplicationContextAware, DisposableBean {
     @Override
     public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
         context = applicationContext;
+
     }
 
     @Override
@@ -119,8 +125,21 @@ public class EHCacheUtils implements ApplicationContextAware, DisposableBean {
             LOGGER.info("shutting down the EhCacheManager");
             ((EhCacheCacheManager) manager).getCacheManager().shutdown();
         } else {
-            LOGGER.log(Level.SEVERE,"Unable to shutdown the CacheManager");
+            LOGGER.log(Level.SEVERE, "Unable to shutdown the CacheManager");
         }
+    }
+
+    @Override
+    public Object postProcessBeforeInitialization(Object bean, String beanName)
+            throws BeansException {
+        return bean;
+    }
+
+    @Override
+    public Object postProcessAfterInitialization(Object bean, String beanName)
+            throws BeansException {
+        ehcache = getCacheOfType(CACHEMANAGER_STORE_NAME, EhCacheCache.class);
+        return bean;
     }
 
 }

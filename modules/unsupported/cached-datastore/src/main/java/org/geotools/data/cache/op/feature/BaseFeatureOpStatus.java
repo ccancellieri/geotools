@@ -1,15 +1,13 @@
 package org.geotools.data.cache.op.feature;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.io.Serializable;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.logging.Logger;
 
 import org.geotools.data.Query;
 import org.geotools.data.cache.op.CachedOpStatus;
@@ -18,6 +16,7 @@ import org.geotools.data.store.ContentEntry;
 import org.geotools.factory.CommonFactoryFinder;
 import org.geotools.geometry.jts.JTS;
 import org.geotools.geometry.jts.JTSFactoryFinder;
+import org.geotools.geometry.jts.ReferencedEnvelope;
 import org.geotools.referencing.CRS;
 import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.feature.type.FeatureType;
@@ -49,40 +48,49 @@ import com.vividsolutions.jts.geom.Envelope;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.Polygon;
 
-public class BaseFeatureOpStatus implements CachedOpStatus<Query> {
+public class BaseFeatureOpStatus implements CachedOpStatus<Query>, Serializable {
 
-    protected final transient Logger LOGGER = org.geotools.util.logging.Logging
-            .getLogger(getClass().getPackage().getName());
+    /** serialVersionUID */
+    private static final long serialVersionUID = 1L;
 
     // used to track cached areas
     protected Geometry cachedAreas = new Polygon(null, null, JTSFactoryFinder.getGeometryFactory());
 
     // lock on cached areas
-    protected transient ReadWriteLock lockCachedAreas = new ReentrantReadWriteLock();
+    protected final ReadWriteLock lockCachedAreas = new ReentrantReadWriteLock();
 
     // used to track dirty areas
     protected Geometry dirtyAreas = new Polygon(null, null, JTSFactoryFinder.getGeometryFactory());
 
     // lock on dirty areas
-    protected transient ReadWriteLock lockDirtyAreas = new ReentrantReadWriteLock();
+    protected final ReadWriteLock lockDirtyAreas = new ReentrantReadWriteLock();
 
-    // the cached schema
-    protected transient SimpleFeatureType schema;
-
-    protected transient static FilterFactory2 ff = CommonFactoryFinder.getFilterFactory2(null);
+    protected static final FilterFactory2 ff = CommonFactoryFinder.getFilterFactory2(null);
 
     private static final Set<Class<? extends Filter>> supportedFilterTypes = new HashSet<Class<? extends Filter>>(
             Arrays.asList(BBOX.class, Contains.class, Crosses.class, DWithin.class, Equals.class,
                     Intersects.class, Overlaps.class, Touches.class, Within.class));
 
-    private ContentEntry entry;
-
-    private CoordinateReferenceSystem worldCRS;
-
-    private GeometryDescriptor geoDesc;
-
     // lock on dirty areas
-    protected transient ReadWriteLock lockStatus = new ReentrantReadWriteLock();
+    private final ReadWriteLock lockStatus = new ReentrantReadWriteLock();
+
+    // the cached schema
+    protected transient SimpleFeatureType schema;
+
+    private transient CoordinateReferenceSystem worldCRS;
+
+    private transient GeometryDescriptor geoDesc;
+
+    private transient ContentEntry entry;
+
+    // needed to track if the cache is complete if (cachedAreas.covers(originalGeom))
+    private transient Geometry originalGeom;
+
+    private transient boolean fullyCached = false;
+
+    public boolean isFullyCached() {
+        return fullyCached;
+    }
 
     public SimpleFeatureType getSchema() {
         try {
@@ -91,7 +99,6 @@ public class BaseFeatureOpStatus implements CachedOpStatus<Query> {
         } finally {
             lockStatus.readLock().unlock();
         }
-
     }
 
     public void setSchema(SimpleFeatureType schema) {
@@ -126,58 +133,6 @@ public class BaseFeatureOpStatus implements CachedOpStatus<Query> {
             this.entry = entry;
         } finally {
             lockStatus.writeLock().unlock();
-        }
-    }
-
-    public void clone(BaseFeatureOpStatus obj) throws IOException {
-        if (obj != null) {
-            final BaseFeatureOpStatus op = (BaseFeatureOpStatus) obj;
-
-            this.cachedAreas = op.cachedAreas;
-            this.lockCachedAreas = op.lockCachedAreas;
-            this.dirtyAreas = op.dirtyAreas;
-            this.lockDirtyAreas = op.lockDirtyAreas;
-            this.setSchema(op.schema);
-            this.entry = op.entry;
-        }
-    }
-
-    public boolean isCached(Geometry geom) throws IOException {
-        if (geom == null) {
-            return !isDirty(geom);
-        }
-        try {
-            lockCachedAreas.readLock().lock();
-            // no cached data?
-            if (cachedAreas == null || cachedAreas.isEmpty())
-                return false;
-            return cachedAreas.covers(geom);
-        } finally {
-            lockCachedAreas.readLock().unlock();
-        }
-    }
-
-    public void setCached(Geometry geom, boolean isCached) {
-        if (geom == null) {
-            // TODO use cache or read from source (how to determine if the cache is complete?)
-            return;
-        }
-        if (isCached) {
-            // integrate cached area with this query
-            try {
-                lockCachedAreas.writeLock().lock();
-                cachedAreas = cachedAreas.union(geom);
-            } finally {
-                lockCachedAreas.writeLock().unlock();
-            }
-        } else {
-            // perform a difference between cached area with this query
-            try {
-                lockCachedAreas.writeLock().lock();
-                cachedAreas = cachedAreas.difference(geom);
-            } finally {
-                lockCachedAreas.writeLock().unlock();
-            }
         }
     }
 
@@ -220,40 +175,6 @@ public class BaseFeatureOpStatus implements CachedOpStatus<Query> {
         }
     }
 
-    public Query queryCachedAreas(final Query query) {
-        CoordinateReferenceSystem crs = query.getCoordinateSystemReproject();
-
-        final Filter[] sF = splitFilters(query);
-        final Envelope env = getEnvelope(sF[1]);
-        final Geometry queryGeom;
-        try {
-            MathTransform transform = getTransformation(crs);
-            queryGeom = getGeometry(env, transform);
-            return queryAreas(query.getTypeName(), getGeometryName(), queryGeom,
-                    getTransformation(crs), true, null);
-        } catch (IOException e) {
-            LOGGER.severe(e.getLocalizedMessage());
-        }
-        return null;
-    }
-
-    public Query querySourceAreas(final Query query) {
-        CoordinateReferenceSystem crs = query.getCoordinateSystemReproject();
-
-        final Filter[] sF = splitFilters(query);
-        final Envelope env = getEnvelope(sF[1]);
-        final Geometry queryGeom;
-        try {
-            MathTransform transform = getTransformation(crs);
-            queryGeom = getGeometry(env, transform);
-            return queryAreas(query.getTypeName(), getGeometryName(), queryGeom,
-                    getTransformation(crs), false, query.getFilter());
-        } catch (IOException e) {
-            LOGGER.severe(e.getLocalizedMessage());
-        }
-        return null;
-    }
-
     public Query queryAreas(final String typeName, String geoName, Geometry transformedQueryGeom,
             MathTransform transform, boolean query4Cache, final Filter queryFilter)
             throws IOException {
@@ -262,7 +183,7 @@ public class BaseFeatureOpStatus implements CachedOpStatus<Query> {
 
         try {
             lockCachedAreas.readLock().lock();
-            if (cachedAreas.isEmpty()) {
+            if (cachedAreas.isEmpty() || geoName == null) {
                 if (query4Cache) {
                     // no geometry in cache
                     overQuery.setFilter(Filter.EXCLUDE);
@@ -271,10 +192,10 @@ public class BaseFeatureOpStatus implements CachedOpStatus<Query> {
                     overQuery.setFilter(queryFilter);
                 }
             } else {// if (cachedAreas.getNumGeometries() > 0) {
-                if (geoName == null) {
-                    throw new IOException(
-                            "Unable to apply the spatial filter without a geometry name");
-                }
+//                if (geoName == null) {
+//                    throw new IOException(
+//                            "Unable to apply the spatial filter without a geometry name");
+//                }
                 final Filter areaFilter;
                 final Filter dirtyFilter;
                 try {
@@ -335,48 +256,20 @@ public class BaseFeatureOpStatus implements CachedOpStatus<Query> {
         return null;
     }
 
-    public String getGeometryName() {
-        if (geoDesc != null) {
-            try {
-                lockStatus.readLock().lock();
-                if (geoDesc != null) {
-                    return geoDesc.getLocalName();
-                }
-            } finally {
-                lockStatus.readLock().unlock();
-            }
-        }
-        return null;
-    }
+    /**
+     * Splits a query into two parts, a spatial component that can be turned into a bbox filter (by including some more feature in the result) and a
+     * residual component that we cannot address with the spatial index
+     * 
+     * @param query
+     */
+//    public Filter[] splitFilters(Query query) {
+//        return splitFilters(query, schema);
+//    }
 
-    public Geometry getGeometry(Query query) throws IOException {
-        final Filter[] sF = splitFilters(query);
-        final Envelope env = getEnvelope(sF[1]);
-        final MathTransform transform = getTransformation(query.getCoordinateSystemReproject());
-        try {
-            return getGeometry(env, transform);
-        } catch (IOException e) {
-            LOGGER.severe(e.getLocalizedMessage());
-        }
-        return null;
-    }
-
-    public Geometry getGeometry(Envelope env, MathTransform transform) throws IOException {
-        if (env == null || env.isNull())
-            return null;
-        final Geometry geom = JTS.toGeometry(env);
-
-        if (schema == null) {
-            throw new IllegalStateException("You may set the schema before call this method");
-        }
-        try {
-            return transform != null ? JTS.transform(geom, transform) : geom;
-        } catch (MismatchedDimensionException e) {
-            throw new IOException(e);
-        } catch (TransformException e) {
-            throw new IOException(e);
-        }
-    }
+//    private static BBOX bboxFilter(Envelope bbox, FeatureType schema) {
+//        return ff.bbox(schema.getGeometryDescriptor().getLocalName(), bbox.getMinX(),
+//                bbox.getMinY(), bbox.getMaxX(), bbox.getMaxY(), null);
+//    }
 
     /**
      * Splits a query into two parts, a spatial component that can be turned into a bbox filter (by including some more feature in the result) and a
@@ -384,56 +277,41 @@ public class BaseFeatureOpStatus implements CachedOpStatus<Query> {
      * 
      * @param query
      */
-    public Filter[] splitFilters(Query query) {
-        return splitFilters(query, schema);
-    }
-
-    private static BBOX bboxFilter(Envelope bbox, FeatureType schema) {
-        return ff.bbox(schema.getGeometryDescriptor().getLocalName(), bbox.getMinX(),
-                bbox.getMinY(), bbox.getMaxX(), bbox.getMaxY(), null);
-    }
-
-    /**
-     * Splits a query into two parts, a spatial component that can be turned into a bbox filter (by including some more feature in the result) and a
-     * residual component that we cannot address with the spatial index
-     * 
-     * @param query
-     */
-    public static Filter[] splitFilters(final Query query, SimpleFeatureType schema) {
-        final Filter filter = query.getFilter();
-
-        if (filter == null || filter.equals(Filter.EXCLUDE)) {
-            return new Filter[] {
-                    Filter.EXCLUDE,
-                    bboxFilter(new Envelope(-Double.MAX_VALUE, Double.MAX_VALUE, -Double.MAX_VALUE,
-                            Double.MAX_VALUE), schema) };
-        }
-
-        if (!(filter instanceof And)) {
-            final Envelope envelope = getEnvelope(filter);
-            if (envelope == null) {
-                return new Filter[] {
-                        Filter.EXCLUDE,
-                        bboxFilter(new Envelope(-Double.MAX_VALUE, Double.MAX_VALUE,
-                                -Double.MAX_VALUE, Double.MAX_VALUE), schema) };
-            } else {
-                return new Filter[] { Filter.EXCLUDE, bboxFilter(envelope, schema) };
-            }
-        }
-
-        final And and = (And) filter;
-        final List residuals = new ArrayList();
-        final List bboxBacked = new ArrayList();
-        for (Iterator it = and.getChildren().iterator(); it.hasNext();) {
-            Filter child = (Filter) it.next();
-            if (getEnvelope(child) != null) {
-                bboxBacked.add(child);
-            } else {
-                residuals.add(child);
-            }
-        }
-        return new Filter[] { (Filter) ff.and(residuals), (Filter) ff.and(bboxBacked) };
-    }
+    // private static Filter[] splitFilters(final Query query, SimpleFeatureType schema) {
+    // final Filter filter = query.getFilter();
+    //
+    // if (filter == null || filter.equals(Filter.EXCLUDE)) {
+    // return new Filter[] {
+    // Filter.EXCLUDE,
+    // bboxFilter(new Envelope(-Double.MAX_VALUE, Double.MAX_VALUE, -Double.MAX_VALUE,
+    // Double.MAX_VALUE), schema) };
+    // }
+    //
+    // if (!(filter instanceof And)) {
+    // final Envelope envelope = getEnvelope(filter);
+    // if (envelope == null) {
+    // return new Filter[] {
+    // Filter.EXCLUDE,
+    // bboxFilter(new Envelope(-Double.MAX_VALUE, Double.MAX_VALUE,
+    // -Double.MAX_VALUE, Double.MAX_VALUE), schema) };
+    // } else {
+    // return new Filter[] { Filter.EXCLUDE, bboxFilter(envelope, schema) };
+    // }
+    // }
+    //
+    // final And and = (And) filter;
+    // final List residuals = new ArrayList();
+    // final List bboxBacked = new ArrayList();
+    // for (Iterator it = and.getChildren().iterator(); it.hasNext();) {
+    // Filter child = (Filter) it.next();
+    // if (getEnvelope(child) != null) {
+    // bboxBacked.add(child);
+    // } else {
+    // residuals.add(child);
+    // }
+    // }
+    // return new Filter[] { (Filter) ff.and(residuals), (Filter) ff.and(bboxBacked) };
+    // }
 
     public static Envelope getEnvelope(final Filter filter) {
         Envelope result = new Envelope();
@@ -491,18 +369,59 @@ public class BaseFeatureOpStatus implements CachedOpStatus<Query> {
         return result;
     }
 
-    //
-    // @Override
-    // public <E extends FeatureStatus<T>> void clone(E obj) throws IOException {
-    // if (obj != null) {
-    // final FeatureStatus<T> op = (FeatureStatus<T>) obj;
-    // clone(op);
-    // }
-    // }
+    public void setOriginalGeometry(Geometry envelope) {
+        this.originalGeom = envelope;
+    }
+
+    public String getGeometryName() {
+        if (geoDesc != null) {
+            try {
+                lockStatus.readLock().lock();
+                if (geoDesc != null) {
+                    return geoDesc.getLocalName();
+                }
+            } finally {
+                lockStatus.readLock().unlock();
+            }
+        }
+        return null;
+    }
+
+    public Geometry getGeometry(Query query) throws IOException {
+//        final Filter[] sF = splitFilters(query);
+        final Envelope env = getEnvelope(query.getFilter());
+        if (env == null || env.isNull())
+            return null;
+        final MathTransform transform = getTransformation(query.getCoordinateSystemReproject());
+        return getGeometry(env, transform);
+    }
+
+    public static Geometry getGeometry(Envelope env, MathTransform transform) throws IOException {
+        if (env == null || env.isNull())
+            return null;
+        final Geometry geom = JTS.toGeometry(env);
+
+        try {
+            return transform != null ? JTS.transform(geom, transform) : geom;
+        } catch (MismatchedDimensionException e) {
+            throw new IOException(e);
+        } catch (TransformException e) {
+            throw new IOException(e);
+        }
+    }
 
     @Override
     public boolean isCached(Query query) throws IOException {
-        final Geometry geom = getGeometry(query);
+        if (fullyCached)
+            return true;
+//        final Filter[] sF = splitFilters(query);
+        final Envelope env = getEnvelope(query.getFilter());
+        if (env == null || env.isNull()) {
+            return false;
+            // TODO use cache or read from source (how to determine if the cache is complete?)
+        }
+        final MathTransform transform = getTransformation(query.getCoordinateSystemReproject());
+        final Geometry geom = getGeometry(env, transform);
         if (geom == null) {
             return false;
             // TODO use cache or read from source (how to determine if the cache is complete?)
@@ -510,25 +429,85 @@ public class BaseFeatureOpStatus implements CachedOpStatus<Query> {
         return isCached(geom);
     }
 
+    private boolean isCached(Geometry geom) throws IOException {
+        if (fullyCached) {
+            return true;
+        } else if (geom == null) {
+            // you are asking for all the geometries in the source
+            // geom=originalGeom; may returns always false otherwise fullyCached should be true
+            return false;
+        }
+        try {
+            lockCachedAreas.readLock().lock();
+            // no cached data?
+            if (cachedAreas == null || cachedAreas.isEmpty())
+                return false;
+            return cachedAreas.covers(geom);
+        } finally {
+            lockCachedAreas.readLock().unlock();
+        }
+    }
+
     @Override
     public void setCached(Query query, boolean isCached) throws IOException {
-        // verify(query);
         final Geometry geom = getGeometry(query);
-        if (geom == null) {
-            return;
-            // TODO use cache or read from source (how to determine if the cache is complete?)
-        }
+
         setCached(geom, isCached);
+    }
+
+    public void setCached(Geometry geom, boolean isCached) throws IOException {
+        if (geom == null) {
+            if (isCached) {
+                // set ALL as cached
+                try {
+                    lockCachedAreas.writeLock().lock();
+                    cachedAreas = cachedAreas.union(originalGeom);
+                } finally {
+                    lockCachedAreas.writeLock().unlock();
+                }
+            } else {
+                // set Nothing as cached
+                fullyCached = false;
+                try {
+                    lockCachedAreas.writeLock().lock();
+                    cachedAreas = cachedAreas.difference(originalGeom);
+                } finally {
+                    lockCachedAreas.writeLock().unlock();
+                }
+            }
+        }
+        if (isCached) {
+            // integrate cached area with this query
+            try {
+                lockCachedAreas.writeLock().lock();
+                cachedAreas = cachedAreas.union(geom);
+            } finally {
+                lockCachedAreas.writeLock().unlock();
+            }
+        } else {
+            // perform a difference between cached area with this query
+            try {
+                lockCachedAreas.writeLock().lock();
+                cachedAreas = cachedAreas.difference(geom);
+            } finally {
+                lockCachedAreas.writeLock().unlock();
+            }
+        }
+        try {
+            lockStatus.writeLock().lock();
+            if (cachedAreas.covers(originalGeom)) {
+                fullyCached = true;
+            } else {
+                fullyCached = false;
+            }
+        } finally {
+            lockStatus.writeLock().unlock();
+        }
     }
 
     @Override
     public boolean isDirty(final Query query) throws IOException {
-        final Geometry geom = getGeometry(query);
-        if (geom == null) {
-            return false;
-            // TODO use cache or read from source (how to determine if the cache is complete?)
-        }
-        return isDirty(geom);
+        return isDirty(getGeometry(query));
     }
 
     @Override
@@ -561,48 +540,32 @@ public class BaseFeatureOpStatus implements CachedOpStatus<Query> {
         } finally {
             lockDirtyAreas.writeLock().unlock();
         }
-
-        // if on this instance has been set the entry we may have written some features, let's remove them
-        // if (getEntry() != null) {
-        // FeatureWriter<SimpleFeatureType, SimpleFeature> fw = null;
-        // try {
-        // fw = cacheManager.getCache().getFeatureWriter(status.getEntry().getTypeName(),
-        // Transaction.AUTO_COMMIT);
-        // while (fw.hasNext()) {
-        // fw.next();
-        // fw.remove();
-        // }
-        // } catch (IOException e) {
-        // LOGGER.log(Level.SEVERE, e.getLocalizedMessage(), e);
-        // } finally {
-        // if (fw != null) {
-        // try {
-        // fw.close();
-        // } catch (IOException e) {
-        // LOGGER.log(Level.WARNING, e.getLocalizedMessage(), e);
-        // }
-        // }
-        // }
-        // }
-        // super.clear();
+        try {
+            lockStatus.writeLock().lock();
+            fullyCached=false;
+        } finally {
+            lockStatus.writeLock().unlock();
+        }
+        
     }
 
-    private final static Operation[] applicableOperations = new Operation[] { Operation.count,
-            Operation.featureCollection, Operation.featureReader, Operation.featureSource };
+    private final static Operation[] applicableOperations = new Operation[] {
+            Operation.featureCount, Operation.featureCollection, Operation.featureReader,
+            Operation.featureSource };
     static {
         Arrays.sort(applicableOperations);
     }
 
-    public static boolean isApplicableTo(Operation op){
+    @Override
+    public boolean isApplicable(Operation op) {
         if (Arrays.binarySearch(applicableOperations, op) > 0) {
             return true;
         }
         return false;
     }
-    
-    @Override
-    public boolean isApplicable(Operation op) {
-        return isApplicableTo(op);
+
+    public Geometry getOriginalGeometry() {
+        return originalGeom;
     }
 
 }

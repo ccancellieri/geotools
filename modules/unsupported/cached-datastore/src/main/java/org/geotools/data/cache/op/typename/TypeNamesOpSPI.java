@@ -5,13 +5,12 @@ import java.util.List;
 
 import org.geotools.data.cache.datastore.CacheManager;
 import org.geotools.data.cache.op.BaseOpSPI;
-import org.geotools.data.cache.op.CachedOpStatus;
 import org.geotools.data.cache.op.Operation;
 import org.opengis.feature.type.Name;
 import org.springframework.stereotype.Component;
 
 @Component
-public class TypeNamesOpSPI extends BaseOpSPI<TypeNamesOp,String,List<Name>> {
+public class TypeNamesOpSPI extends BaseOpSPI<TypeNameOpStatus, TypeNamesOp, String, List<Name>> {
 
     /** serialVersionUID */
     private static final long serialVersionUID = 8002106793427576653L;
@@ -22,8 +21,13 @@ public class TypeNamesOpSPI extends BaseOpSPI<TypeNamesOp,String,List<Name>> {
     }
 
     @Override
-    public TypeNamesOp createInstance(CacheManager cacheManager, final CachedOpStatus<String> status) throws IOException {
-        return new TypeNamesOp(cacheManager,status);
+    public TypeNamesOp createInstance(CacheManager cacheManager, final TypeNameOpStatus status)
+            throws IOException {
+        return new TypeNamesOp(cacheManager, status);
     }
 
+    @Override
+    public TypeNameOpStatus createStatus() {
+        return new TypeNameOpStatus();
+    }
 }

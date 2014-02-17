@@ -1,9 +1,12 @@
 package org.geotools.data.cache.op;
 
 import java.io.IOException;
-import java.util.List;
+import java.io.Serializable;
 
-public class DummyCachedOpStatus<K> implements CachedOpStatus<K> {
+public class DummyCachedOpStatus<K> implements CachedOpStatus<K>, Serializable {
+
+    /** serialVersionUID */
+    private static final long serialVersionUID = 1L;
 
     @Override
     public void clear() throws IOException {

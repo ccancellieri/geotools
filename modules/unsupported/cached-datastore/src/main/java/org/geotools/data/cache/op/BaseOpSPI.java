@@ -1,12 +1,14 @@
 package org.geotools.data.cache.op;
 
-public abstract class BaseOpSPI<E extends CachedOp<K, T>, K, T> extends CachedOpSPI<E, K, T> {
+public abstract class BaseOpSPI<S extends CachedOpStatus<K>, E extends CachedOp<K, T>, K, T> extends
+        CachedOpSPI<S, E, K, T> {
 
     /** serialVersionUID */
     private static final long serialVersionUID = 1L;
 
-    public CachedOpStatus<K> createStatus() {
-        return new BaseOpStatus<K>() {
+    @SuppressWarnings("unchecked")
+    public S createStatus() {
+        return (S) new BaseOpStatus<K>() {
             @Override
             public boolean isApplicable(Operation op) {
                 if (op.equals(getOp())) {

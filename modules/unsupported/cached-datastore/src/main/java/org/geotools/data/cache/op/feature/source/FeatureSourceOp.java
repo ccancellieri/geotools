@@ -6,7 +6,6 @@ import org.geotools.data.FeatureReader;
 import org.geotools.data.Query;
 import org.geotools.data.Transaction;
 import org.geotools.data.cache.datastore.CacheManager;
-import org.geotools.data.cache.op.CachedOpStatus;
 import org.geotools.data.cache.op.feature.BaseFeatureOp;
 import org.geotools.data.cache.op.feature.BaseFeatureOpStatus;
 import org.geotools.data.cache.utils.DelegateContentFeatureSource;
@@ -18,14 +17,15 @@ import org.opengis.feature.simple.SimpleFeatureType;
 
 public class FeatureSourceOp extends BaseFeatureOp<SimpleFeatureSource> {
 
-    public FeatureSourceOp(final CacheManager cacheManager, final CachedOpStatus<Query> status) throws IOException {
+    public FeatureSourceOp(final CacheManager cacheManager, final BaseFeatureOpStatus status)
+            throws IOException {
         super(cacheManager, status);
     }
 
     @Override
     public SimpleFeatureSource getCache(Query query) throws IOException {
         final SimpleFeatureSource featureSource = new DelegateContentFeatureSource(cacheManager,
-                query, (BaseFeatureOpStatus)getStatus()) {
+                query, getStatus()) {
             @Override
             protected FeatureReader<SimpleFeatureType, SimpleFeature> getReaderInternal(Query query)
                     throws IOException {
@@ -40,12 +40,12 @@ public class FeatureSourceOp extends BaseFeatureOp<SimpleFeatureSource> {
     public SimpleFeatureSource updateCache(Query query) throws IOException {
 
         final SimpleFeatureSource featureSource = new DelegateContentFeatureSource(cacheManager,
-                query, (BaseFeatureOpStatus)getStatus()) {
+                query, getStatus()) {
             @Override
             protected FeatureReader<SimpleFeatureType, SimpleFeature> getReaderInternal(Query query)
                     throws IOException {
 
-                return new PipelinedContentFeatureReader((BaseFeatureOpStatus)getStatus(), query, cacheManager,
+                return new PipelinedContentFeatureReader(getStatus(), query, cacheManager,
                         Transaction.AUTO_COMMIT);
             }
         };

@@ -12,7 +12,6 @@ import org.geotools.data.cache.op.Operation;
 import org.geotools.data.cache.op.feature.BaseFeatureOp;
 import org.geotools.data.cache.op.feature.BaseFeatureOpStatus;
 import org.geotools.data.simple.SimpleFeatureReader;
-import org.geotools.data.store.ContentEntry;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.feature.type.Name;
@@ -25,7 +24,7 @@ import com.vividsolutions.jts.geom.Geometry;
 public class PipelinedContentFeatureReader extends DelegateSimpleFeature implements
         FeatureReader<SimpleFeatureType, SimpleFeature> {
 
-//    private final ContentEntry entry;
+    // private final ContentEntry entry;
 
     private final Transaction transaction;
 
@@ -35,13 +34,13 @@ public class PipelinedContentFeatureReader extends DelegateSimpleFeature impleme
 
     private FeatureReader<SimpleFeatureType, SimpleFeature> frDiff = null;
 
-    private final BaseFeatureOp<?> featureSourceOp;
-
     private final BaseFeatureOp<SimpleFeatureReader> featureReaderOp;
 
     private final BaseFeatureOpStatus status;
 
     private Query query = null;
+
+    private Geometry queryGeom;
 
     public PipelinedContentFeatureReader(final BaseFeatureOpStatus status, final Query query,
             final CacheManager cacheManager) throws IOException {
@@ -51,25 +50,15 @@ public class PipelinedContentFeatureReader extends DelegateSimpleFeature impleme
     public PipelinedContentFeatureReader(final BaseFeatureOpStatus status, final Query query,
             final CacheManager cacheManager, final Transaction transaction) throws IOException {
         super(cacheManager);
-//        this.entry = entry;
+
         this.status = status;
         this.query = query;
         // featureSource
-        this.featureSourceOp = cacheManager.getCachedOpOfType(Operation.featureSource,
-                BaseFeatureOp.class);
+        // this.featureSourceOp = cacheManager.getCachedOpOfType(Operation.featureSource,
+        // BaseFeatureOp.class);
         // featureReader
         this.featureReaderOp = cacheManager.getCachedOpOfType(Operation.featureReader,
                 BaseFeatureOp.class);
-//
-//        if (featureReaderOp != null) {
-//            status = featureReaderOp.getStatus();
-//        } else if (featureSourceOp != null) {
-//            status = featureSourceOp.getStatus();
-//        } else {
-//            status = new FeatureStatus();
-//            status.setSchema(getFeatureType());
-//            status.setEntry(entry);
-//        }
 
         this.transaction = transaction;
     }
@@ -127,7 +116,7 @@ public class PipelinedContentFeatureReader extends DelegateSimpleFeature impleme
 
         // set as cached
         status.setCached((Geometry) df.getDefaultGeometry(), true);
-        // featureSourceOp.setDirty(query, false); // TODO
+
         return df;
 
     }
@@ -138,11 +127,11 @@ public class PipelinedContentFeatureReader extends DelegateSimpleFeature impleme
             Query cacheQuery = null;
             Query sourceQuery = null;
             try {
-                final Filter[] sF = BaseFeatureOpStatus.splitFilters(query, status.getSchema());
-                final Envelope env = BaseFeatureOpStatus.getEnvelope(sF[1]);
+                // final Filter[] sF = BaseFeatureOpStatus.splitFilters(query, status.getSchema());
+                final Envelope env = BaseFeatureOpStatus.getEnvelope(query.getFilter());
                 MathTransform transform = status.getTransformation(query
                         .getCoordinateSystemReproject());
-                final Geometry queryGeom = status.getGeometry(env, transform);
+                queryGeom = BaseFeatureOpStatus.getGeometry(env, transform);
                 final String geoName = status.getGeometryName();
                 final String typeName = query.getTypeName();
                 cacheQuery = status.queryAreas(typeName, geoName, queryGeom, transform, true, null);
@@ -170,8 +159,6 @@ public class PipelinedContentFeatureReader extends DelegateSimpleFeature impleme
                                 .getCache().getFeatureReader(cacheQuery, transaction),
                                 status.getSchema());
                     }
-                    // frDiff = new SimpleFeatureUpdaterReader(entry, cacheQuery, cacheManager,
-                    // transaction);
 
                 }
             } catch (IOException e) {
@@ -180,12 +167,18 @@ public class PipelinedContentFeatureReader extends DelegateSimpleFeature impleme
             }
 
         }
-        boolean notEnd = fr.hasNext() || frDiff.hasNext();
-        // if (!notEnd){
-        // featureSourceOp.setCached(query, true); //TODO
-        // featureSourceOp.setDirty(query, false); //TODO
-        // }
-        return notEnd;
+        boolean hasNext = fr.hasNext() || frDiff.hasNext();
+        if (!hasNext) {
+//            if (queryGeom == null) {
+//                // query on all the geoms
+//                status.setCached(status.getOriginalGeometry(), true);
+//            } else {
+            if (queryGeom != null) {
+                // set query as cached
+                status.setCached(queryGeom, true);
+            }
+        }
+        return hasNext;
     }
 
     @Override

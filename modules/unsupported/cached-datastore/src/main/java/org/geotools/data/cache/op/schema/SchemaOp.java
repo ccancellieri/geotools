@@ -8,32 +8,16 @@ import org.geotools.data.cache.op.CachedOpStatus;
 import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.feature.type.Name;
 
-public class SchemaOp extends BaseOp<Name, SimpleFeatureType> {
+public class SchemaOp extends BaseOp<CachedOpStatus<Name>, Name, SimpleFeatureType> {
 
 
     public SchemaOp(CacheManager cacheManager, final CachedOpStatus<Name> status) throws IOException {
         super(cacheManager, status);
     }
-//
-//    @Override
-//    public <E extends CachedOp<SimpleFeatureType, Name>> void clone(E obj) throws IOException {
-//        super.clone(obj);
-//
-//        final SchemaOp op = (SchemaOp) obj;
-//        isDirtyLock = op.isDirtyLock;
-//        try {
-//            isDirtyLock.writeLock().lock();
-//            this.isDirty = op.isDirty;
-//        } finally {
-//            isDirtyLock.writeLock().unlock();
-//        }
-//
-//    }
 
     @Override
     public SimpleFeatureType updateCache(Name name) throws IOException {
 
-//        verify(name);
 
         SimpleFeatureType schema = cacheManager.getSource().getSchema(name);
 

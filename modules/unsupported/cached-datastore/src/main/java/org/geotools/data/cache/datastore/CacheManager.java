@@ -10,7 +10,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import org.geotools.data.DataStore;
-import org.geotools.data.cache.op.BaseOp;
 import org.geotools.data.cache.op.CachedOp;
 import org.geotools.data.cache.op.CachedOpSPI;
 import org.geotools.data.cache.op.CachedOpStatus;
@@ -43,6 +42,7 @@ public class CacheManager implements DisposableBean {
         this.source = store;
         this.cache = cache;
         this.status = status;
+        load(null);
     }
 
     /**
@@ -96,9 +96,9 @@ public class CacheManager implements DisposableBean {
         return null;
     }
 
-    private String createCachedOpUID(Operation op) {
-        return new StringBuilder(status.getUID()).append(':').append(op.toString()).toString();
-    }
+    // private String createCachedOpUID(Operation op) {
+    // return new StringBuilder(status.getUID()).append(':').append(op.toString()).toString();
+    // }
 
     // public void save() throws IOException {
     // // save the status
@@ -186,8 +186,8 @@ public class CacheManager implements DisposableBean {
         // this.cachedOpMapLock.writeLock().unlock();
         // }
 
-        final Collection<CachedOpSPI<?, ?, ?>> spiList = status.getCachedOps();
-        for (CachedOpSPI<?, ?, ?> spi : spiList) {
+        final Collection<CachedOpSPI<CachedOpStatus<?>, ?, ?, ?>> spiList = status.getCachedOps();
+        for (CachedOpSPI<CachedOpStatus<?>, ?, ?, ?> spi : spiList) {
             try {
                 final CachedOp op = createCachedOp(this, spi);
                 // add this operation to the map
@@ -205,11 +205,11 @@ public class CacheManager implements DisposableBean {
         }
     }
 
-    public static CachedOp createCachedOp(CacheManager manager, CachedOpSPI<?, ?, ?> spi)
-            throws IOException {
+    private static CachedOp createCachedOp(CacheManager manager,
+            CachedOpSPI<CachedOpStatus<?>, ?, ?, ?> spi) throws IOException {
         // this will create the operation which may be able to load itself configuration
-        final CachedOpStatus cachedStatus = (CachedOpStatus) manager.status.getCachedOpStatus(spi
-                .getOp());
+        final CachedOpStatus<?> cachedStatus = (CachedOpStatus<?>) manager.status
+                .getCachedOpStatus(spi.getOp());
         return (CachedOp) spi.create(manager,
                 cachedStatus != null ? cachedStatus : spi.createStatus());
     }
@@ -225,6 +225,10 @@ public class CacheManager implements DisposableBean {
     @Override
     public void destroy() throws Exception {
         dispose();
+    }
+
+    public CacheStatus getStatus() {
+        return status;
     }
 
 }

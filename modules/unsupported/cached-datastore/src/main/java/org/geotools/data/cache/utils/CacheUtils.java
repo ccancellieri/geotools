@@ -12,6 +12,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import org.geotools.data.cache.op.BaseOp;
+import org.geotools.data.cache.op.BaseOpStatus;
 import org.geotools.data.cache.op.CachedOpSPI;
 import org.geotools.data.cache.op.Operation;
 import org.springframework.beans.BeansException;
@@ -34,22 +35,22 @@ public class CacheUtils implements ApplicationContextAware {
     private static transient ApplicationContext context;
 
     @Autowired
-    private transient List<CachedOpSPI<BaseOp<?, ?>, ?, ?>> catalog;
+    private transient List<CachedOpSPI<BaseOpStatus<?>, BaseOp<?, ?, ?>, ?, ?>> catalog;
 
-    public List<CachedOpSPI<BaseOp<?, ?>, ?, ?>> getCachedOps() {
+    public List<CachedOpSPI<BaseOpStatus<?>, BaseOp<?, ?, ?>, ?, ?>> getCachedOps() {
         return catalog;
     }
 
-    public TreeSet<CachedOpSPI<BaseOp<?, ?>, ?, ?>> getCachedOpSPITree(Operation op) {
-        final TreeSet<CachedOpSPI<BaseOp<?, ?>, ?, ?>> tree = new TreeSet<CachedOpSPI<BaseOp<?, ?>, ?, ?>>(
-                new Comparator<CachedOpSPI<BaseOp<?, ?>, ?, ?>>() {
+    public TreeSet<CachedOpSPI<BaseOpStatus<?>, BaseOp<?, ?, ?>, ?, ?>> getCachedOpSPITree(Operation op) {
+        final TreeSet<CachedOpSPI<BaseOpStatus<?>, BaseOp<?, ?, ?>, ?, ?>> tree = new TreeSet<CachedOpSPI<BaseOpStatus<?>, BaseOp<?, ?, ?>, ?, ?>>(
+                new Comparator<CachedOpSPI<BaseOpStatus<?>, BaseOp<?, ?, ?>, ?, ?>>() {
                     @Override
-                    public int compare(CachedOpSPI<BaseOp<?, ?>, ?, ?> o1,
-                            CachedOpSPI<BaseOp<?, ?>, ?, ?> o2) {
+                    public int compare(CachedOpSPI<BaseOpStatus<?>, BaseOp<?, ?, ?>, ?, ?> o1,
+                            CachedOpSPI<BaseOpStatus<?>, BaseOp<?, ?, ?>, ?, ?> o2) {
                         return o1.priority() > o2.priority() ? 1 : -1;
                     }
                 });
-        for (CachedOpSPI<BaseOp<?, ?>, ?, ?> spi : getCachedOps()) {
+        for (CachedOpSPI<BaseOpStatus<?>, BaseOp<?, ?, ?>, ?, ?> spi : getCachedOps()) {
             if (spi.getOp().equals(op)) {
                 tree.add(spi);
             }
@@ -57,8 +58,8 @@ public class CacheUtils implements ApplicationContextAware {
         return tree;
     }
 
-    public CachedOpSPI<BaseOp<?, ?>, ?, ?> getFirstCachedOpSPI(Operation op) {
-        final TreeSet<CachedOpSPI<BaseOp<?, ?>, ?, ?>> spiTree = getCachedOpSPITree(op);
+    public CachedOpSPI<BaseOpStatus<?>, BaseOp<?, ?, ?>, ?, ?> getFirstCachedOpSPI(Operation op) {
+        final TreeSet<CachedOpSPI<BaseOpStatus<?>, BaseOp<?, ?, ?>, ?, ?>> spiTree = getCachedOpSPITree(op);
         if (!spiTree.isEmpty()) {
             return spiTree.first();
         } else {

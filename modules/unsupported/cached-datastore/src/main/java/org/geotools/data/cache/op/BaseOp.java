@@ -4,14 +4,14 @@ import java.io.IOException;
 
 import org.geotools.data.cache.datastore.CacheManager;
 
-public abstract class BaseOp<K, T> implements CachedOp<K, T> {
+public abstract class BaseOp<S extends CachedOpStatus<K>, K, T> implements CachedOp<K, T> {
 
     // manager
     protected final transient CacheManager cacheManager;
 
-    protected final CachedOpStatus<K> status;
+    protected final S status;
 
-    public BaseOp(CacheManager cacheManager, final CachedOpStatus<K> status) throws IOException {
+    public BaseOp(CacheManager cacheManager, final S status) throws IOException {
 
         if (status == null || cacheManager == null)
             throw new IllegalArgumentException(
@@ -22,8 +22,8 @@ public abstract class BaseOp<K, T> implements CachedOp<K, T> {
         this.status = status;
     }
 
-    public <E extends CachedOpStatus<K>> E getStatus() {
-        return (E) status;
+    public S getStatus() {
+        return status;
     }
 
     public void clear() throws IOException {

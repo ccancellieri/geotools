@@ -1,40 +1,31 @@
 package org.geotools.data.cache.op;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-public abstract class BaseOpStatus<K> implements CachedOpStatus<K> {
+public abstract class BaseOpStatus<K> implements CachedOpStatus<K>, Serializable {
 
-    // UID for this instance
-    protected String uid;
+    /** serialVersionUID */
+    private static final long serialVersionUID = 1L;
 
     // status of this operation
     protected final Map<K, Boolean> isCachedMap = new HashMap<K, Boolean>();
 
     // lock
-    protected final transient ReadWriteLock isCachedLock = new ReentrantReadWriteLock();
+    protected final ReadWriteLock isCachedLock = new ReentrantReadWriteLock();
 
     protected final Map<K, Boolean> isDirty = new HashMap<K, Boolean>();
 
     // lock
-    protected final transient ReentrantReadWriteLock isDirtyLock = new ReentrantReadWriteLock();
+    protected final ReentrantReadWriteLock isDirtyLock = new ReentrantReadWriteLock();
 
     protected Map<K, Boolean> getIsCachedMap() {
         return isCachedMap;
     }
-
-    public String getUid() {
-        return uid;
-    }
-
-    // @Override
-    // public Serializable save() throws IOException {
-    // EHCacheUtils.store(uid, this);
-    // return uid;
-    // }
 
     @Override
     public void clear() throws IOException {

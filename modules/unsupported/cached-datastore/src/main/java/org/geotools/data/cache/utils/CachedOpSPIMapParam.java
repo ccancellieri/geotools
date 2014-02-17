@@ -11,6 +11,8 @@ import java.util.logging.Logger;
 import org.geotools.data.DataAccessFactory.Param;
 import org.geotools.data.cache.op.CachedOp;
 import org.geotools.data.cache.op.CachedOpSPI;
+import org.geotools.data.cache.op.CachedOpStatus;
+import org.geotools.data.cache.op.Operation;
 import org.opengis.util.InternationalString;
 
 /**
@@ -68,17 +70,22 @@ public class CachedOpSPIMapParam extends Param {
         return parseSPIMap(text);
     }
 
-    public static <T, K> Map<String, CachedOpSPI<CachedOp<K, T>, K, T>> parseSPIMap(String text) {
-        final Map<String, CachedOpSPI<CachedOp<K, T>, K, T>> output = new HashMap<String, CachedOpSPI<CachedOp<K, T>, K, T>>();
+    public static <T, K> Map<String, CachedOpSPI<CachedOpStatus<K>, CachedOp<K, T>, K, T>> parseSPIMap(String text) {
+        final Map<String, CachedOpSPI<CachedOpStatus<K>, CachedOp<K, T>, K, T>> output = new HashMap<String, CachedOpSPI<CachedOpStatus<K>, CachedOp<K, T>, K, T>>();
         text = text.substring(1, text.length() - 1);
         for (String pair : text.split(",")) {
             final String[] kv = pair.split("=");
             if (kv.length > 1 && kv[1].length() > 0) {
-                CachedOpSPI<CachedOp<K, T>, K, T> spi;
+                CachedOpSPI<CachedOpStatus<K>, CachedOp<K, T>, K, T> spi;
+                Operation op;
                 try {
-                    spi = (CachedOpSPI<CachedOp<K, T>, K, T>) Class.forName(kv[1].trim())
+                    spi = (CachedOpSPI<CachedOpStatus<K>, CachedOp<K, T>, K, T>) Class.forName(kv[1].trim())
                             .newInstance();
-                    output.put(kv[0].trim(), spi);
+                    if (spi != null) {
+                        output.put(kv[0].trim(), spi);
+                    } else {
+                        LOGGER.warning("Unable to parse the following element: " + kv);
+                    }
                 } catch (InstantiationException e) {
                     LOGGER.log(Level.SEVERE, e.getMessage(), e);
                 } catch (IllegalAccessException e) {
@@ -93,17 +100,17 @@ public class CachedOpSPIMapParam extends Param {
 
     @Override
     public String text(Object value) {
-        return toText((Map<String, CachedOpSPI<?, ?, ?>>) value);
+        return toText((Map<String, CachedOpSPI<CachedOpStatus<Object>, CachedOp<Object, Object>, Object, Object>>) value);
     }
 
-    public static <T, K> String toText(Map<String, CachedOpSPI<?, ?, ?>> value) {
+    public static <T, K> String toText(Map<String, CachedOpSPI<CachedOpStatus<K>, CachedOp<K, T>, K, T>> value) {
         if (value == null)
             throw new IllegalArgumentException("Unable to convert a null map");
         final StringWriter sw = new StringWriter();
         sw.write('{');
-        final Iterator<Entry<String, CachedOpSPI<?, ?, ?>>> it = value.entrySet().iterator();
+        final Iterator<Entry<String, CachedOpSPI<CachedOpStatus<K>, CachedOp<K, T>, K, T>>> it = value.entrySet().iterator();
         if (it.hasNext()) {
-            Entry<String, CachedOpSPI<?, ?, ?>> e = it.next();
+            Entry<String, CachedOpSPI<CachedOpStatus<K>, CachedOp<K, T>, K, T>> e = it.next();
             if (e.getValue() != null) {
                 sw.write(e.getKey());
                 sw.write('=');
@@ -111,7 +118,7 @@ public class CachedOpSPIMapParam extends Param {
             }
         }
         while (it.hasNext()) {
-            Entry<String, CachedOpSPI<?, ?, ?>> e = it.next();
+            Entry<String, CachedOpSPI<CachedOpStatus<K>, CachedOp<K, T>, K, T>> e = it.next();
             if (e.getValue() != null) {
                 sw.write(',');
                 sw.write(e.getKey());

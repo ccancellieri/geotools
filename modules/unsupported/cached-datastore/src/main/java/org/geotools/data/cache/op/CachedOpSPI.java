@@ -5,19 +5,19 @@ import java.io.Serializable;
 
 import org.geotools.data.cache.datastore.CacheManager;
 
-public abstract class CachedOpSPI<E extends CachedOp<K,T>, K, T> implements Serializable {
+public abstract class CachedOpSPI<S extends CachedOpStatus<K>, E extends CachedOp<K,T>, K, T> implements Serializable {
 
     /** serialVersionUID */
     private static final long serialVersionUID = -7808528781956318808L;
 
-    public E create(CacheManager cacheManager, final CachedOpStatus<K> status) throws IOException {
+    public E create(CacheManager cacheManager, final S status) throws IOException {
         return createInstance(cacheManager, status);
     }
 
     @Override
     public boolean equals(Object o) {
         if (this.getClass().isAssignableFrom(o.getClass())) {
-            CachedOpSPI<E,K,T> op = (CachedOpSPI<E,K,T>) o;
+            CachedOpSPI<S,E,K,T> op = (CachedOpSPI<S,E,K,T>) o;
             if (op.getClass().equals(this.getClass()) && this.getOp().equals(op.getOp())
                     && this.priority() == op.priority()) {
                 return true;
@@ -26,10 +26,10 @@ public abstract class CachedOpSPI<E extends CachedOp<K,T>, K, T> implements Seri
         return false;
     }
 
-    public abstract E createInstance(CacheManager cacheManager, final CachedOpStatus<K> status)
+    public abstract E createInstance(CacheManager cacheManager, final S status)
             throws IOException;
     
-    public abstract CachedOpStatus<K> createStatus();
+    public abstract S createStatus();
 
     /**
      * @return The cached operation (an {@link Operation})
