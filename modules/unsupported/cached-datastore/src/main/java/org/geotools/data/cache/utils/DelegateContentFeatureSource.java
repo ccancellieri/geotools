@@ -231,11 +231,13 @@ public class DelegateContentFeatureSource extends ContentFeatureSource {
                 }
                 if (!featureBoundsOp.isCached(query) || featureBoundsOp.isDirty(query)) {
                     env = featureBoundsOp.updateCache(query);
+                    featureBoundsOp.save();
                 } else {
                     env = featureBoundsOp.getCache(query);
                 }
             } catch (IOException e) {
                 featureBoundsOp.setDirty(query, true);
+                featureBoundsOp.save();
                 if (LOGGER.isLoggable(Level.SEVERE)) {
                     LOGGER.log(Level.SEVERE, e.getLocalizedMessage(), e);
                 }
@@ -260,11 +262,13 @@ public class DelegateContentFeatureSource extends ContentFeatureSource {
                 }
                 if (!featureCountOp.isCached(query) || featureCountOp.isDirty(query)) {
                     count = featureCountOp.updateCache(query);
+                    featureCountOp.save();
                 } else {
                     count = featureCountOp.getCache(query);
                 }
             } catch (IOException e) {
                 featureCountOp.setDirty(query, true);
+                featureCountOp.save();
                 if (LOGGER.isLoggable(Level.SEVERE)) {
                     LOGGER.log(Level.SEVERE, e.getLocalizedMessage(), e);
                 }
@@ -340,6 +344,7 @@ public class DelegateContentFeatureSource extends ContentFeatureSource {
                         source.getFeatures(query));
             } else {
                 featureSourceOp.setDirty(query, true);
+                featureSourceOp.save();
                 throw new IOException(
                         "Unable to create a simple feature source from the passed query: " + query);
             }
@@ -359,11 +364,13 @@ public class DelegateContentFeatureSource extends ContentFeatureSource {
             try {
                 if (!schemaOp.isCached(name) || schemaOp.isDirty(name)) {
                     schema = schemaOp.updateCache(name);
+                    schemaOp.save();
                 } else {
                     schema = schemaOp.getCache(name);
                 }
             } catch (IOException e) {
                 schemaOp.setDirty(name, true);
+                schemaOp.save();
                 if (LOGGER.isLoggable(Level.SEVERE)) {
                     LOGGER.log(Level.SEVERE, e.getLocalizedMessage(), e);
                 }

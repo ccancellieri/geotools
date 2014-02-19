@@ -21,6 +21,10 @@ public abstract class BaseOp<S extends CachedOpStatus<K>, K, T> implements Cache
 
         this.status = status;
     }
+    
+//    public CacheManager getCacheManager(){
+//        return cacheManager;
+//    }
 
     public S getStatus() {
         return status;
@@ -28,6 +32,10 @@ public abstract class BaseOp<S extends CachedOpStatus<K>, K, T> implements Cache
 
     public void clear() throws IOException {
         status.clear();
+    }
+    
+    public void save() throws IOException{
+        cacheManager.save();
     }
 
     public boolean isDirty(K key) throws IOException {

@@ -14,9 +14,9 @@ import org.geotools.data.cache.op.CachedOp;
 import org.geotools.data.cache.op.CachedOpSPI;
 import org.geotools.data.cache.op.CachedOpStatus;
 import org.geotools.data.cache.op.Operation;
-import org.springframework.beans.factory.DisposableBean;
+import org.geotools.data.cache.utils.EHCacheUtils;
 
-public class CacheManager implements DisposableBean {
+public class CacheManager {
     private final transient Logger LOGGER = org.geotools.util.logging.Logging.getLogger(getClass()
             .getPackage().getName());
 
@@ -35,14 +35,55 @@ public class CacheManager implements DisposableBean {
     // cached operations
     private final transient Map<Operation, CachedOp<?, ?>> cachedOpMap = new HashMap<Operation, CachedOp<?, ?>>();
 
-    public CacheManager(DataStore store, DataStore cache, final CacheStatus status) {
-        if (store == null || cache == null)
+    // public CacheManager(DataStore store, DataStore cache, final CacheStatus status) {
+    // if (store == null || cache == null)
+    // throw new IllegalArgumentException(
+    // "Unable to create the cache manager with null source or cache datastore");
+    // this.source = store;
+    // this.cache = cache;
+    // this.status = status;
+    //
+    // load(null);
+    // }
+
+    public CacheManager(DataStore store, DataStore cache, final String typeName,
+            final Map<String, CachedOpSPI<CachedOpStatus<?>, CachedOp<?, ?>, ?, ?>> cachedOpSPIMap,
+            final boolean sharedFeatureStatus) {
+        if (store == null || cache == null || typeName == null)
             throw new IllegalArgumentException(
                     "Unable to create the cache manager with null source or cache datastore");
         this.source = store;
         this.cache = cache;
-        this.status = status;
+        // try to load
+        final CacheStatus cs = EHCacheUtils.load(typeName);
+        if (cs != null) {
+            this.status = cs;
+        } else {
+            this.status = new CacheStatus(typeName, cachedOpSPIMap);
+            // store created status
+            EHCacheUtils.store(typeName, status);
+        }
+
         load(null);
+    }
+
+    /**
+     * Recursively save the current status
+     * 
+     * @throws IOException
+     */
+    public void save() throws IOException {
+        EHCacheUtils.store(status.getUID(), status);
+//        EHCacheUtils.flush();
+    }
+
+    /**
+     * clear the cache status and all of the sub caches
+     */
+    public void clear() throws IOException {
+        status.clear();
+        // persist changes
+        save();
     }
 
     /**
@@ -186,7 +227,8 @@ public class CacheManager implements DisposableBean {
         // this.cachedOpMapLock.writeLock().unlock();
         // }
 
-        final Collection<CachedOpSPI<CachedOpStatus<?>, ?, ?, ?>> spiList = status.getCachedOps();
+        final Collection<CachedOpSPI<CachedOpStatus<?>, CachedOp<?, ?>, ?, ?>> spiList = status
+                .getCachedOps();
         for (CachedOpSPI<CachedOpStatus<?>, ?, ?, ?> spi : spiList) {
             try {
                 final CachedOp op = createCachedOp(this, spi);
@@ -220,11 +262,6 @@ public class CacheManager implements DisposableBean {
 
     public DataStore getCache() {
         return cache;
-    }
-
-    @Override
-    public void destroy() throws Exception {
-        dispose();
     }
 
     public CacheStatus getStatus() {

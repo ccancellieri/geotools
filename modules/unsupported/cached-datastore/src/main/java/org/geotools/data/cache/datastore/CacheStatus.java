@@ -9,6 +9,7 @@ import java.util.Set;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
+import org.geotools.data.cache.op.CachedOp;
 import org.geotools.data.cache.op.CachedOpSPI;
 import org.geotools.data.cache.op.CachedOpStatus;
 import org.geotools.data.cache.op.Operation;
@@ -30,7 +31,7 @@ public class CacheStatus implements Serializable {
     private final String typeName;
 
     // operations
-    private Map<String, CachedOpSPI<CachedOpStatus<?>, ?, ?, ?>> cachedOpSPIMap;
+    private Map<String, CachedOpSPI<CachedOpStatus<?>, CachedOp<?,?>, ?, ?>> cachedOpSPIMap;
 
     // status
     private final Map<String, CachedOpStatus<?>> cachedOpStatusMap = new HashMap<String, CachedOpStatus<?>>();
@@ -38,12 +39,12 @@ public class CacheStatus implements Serializable {
     private final ReadWriteLock statusLock = new ReentrantReadWriteLock();
 
     public CacheStatus(final String typeName,
-            Map<String, CachedOpSPI<CachedOpStatus<?>, ?, ?, ?>> cachedOpSPIMap) {
+            Map<String, CachedOpSPI<CachedOpStatus<?>, CachedOp<?,?>, ?, ?>> cachedOpSPIMap) {
         this(typeName, cachedOpSPIMap, true);
     }
     
     public CacheStatus(final String typeName,
-            Map<String, CachedOpSPI<CachedOpStatus<?>, ?, ?, ?>> cachedOpSPIMap, final boolean sharedFeatureStatus) {
+            Map<String, CachedOpSPI<CachedOpStatus<?>, CachedOp<?,?>, ?, ?>> cachedOpSPIMap, final boolean sharedFeatureStatus) {
         if (typeName == null || typeName.isEmpty())
             throw new IllegalArgumentException(
                     "Unable to create the cache status with null or empty uid");
@@ -51,7 +52,7 @@ public class CacheStatus implements Serializable {
         this.typeName = typeName;
 
         if (cachedOpSPIMap == null) {
-            this.cachedOpSPIMap = new HashMap<String, CachedOpSPI<CachedOpStatus<?>, ?, ?, ?>>();
+            this.cachedOpSPIMap = new HashMap<String, CachedOpSPI<CachedOpStatus<?>, CachedOp<?,?>, ?, ?>>();
         } else {
             // initialize the map
             this.cachedOpSPIMap = cachedOpSPIMap;// setCachedOpSPI(new ArrayList<CachedOpSPI<CachedOpStatus<?>,?,?,?>>(cachedOpSPIMap.values()));
@@ -92,13 +93,20 @@ public class CacheStatus implements Serializable {
     }
 
     void clear() throws IOException {
+//        try {
+//            statusLock.writeLock().lock();
+//            cachedOpSPIMap.clear();
+//        } finally {
+//            statusLock.writeLock().unlock();
+//        }
         try {
-            statusLock.writeLock().lock();
-            cachedOpSPIMap.clear();
+            this.statusLock.writeLock().lock();
+            for (CachedOpStatus<?> op : cachedOpStatusMap.values()){
+                op.clear();
+            }
         } finally {
-            statusLock.writeLock().unlock();
+            this.statusLock.writeLock().unlock();
         }
-
     }
 
     Set<String> getCachedOpKeys() {
@@ -110,7 +118,7 @@ public class CacheStatus implements Serializable {
         }
     }
 
-    Collection<CachedOpSPI<CachedOpStatus<?>, ?, ?, ?>> getCachedOps() {
+    Collection<CachedOpSPI<CachedOpStatus<?>, CachedOp<?,?>, ?, ?>> getCachedOps() {
         try {
             this.statusLock.readLock().lock();
             return cachedOpSPIMap.values();

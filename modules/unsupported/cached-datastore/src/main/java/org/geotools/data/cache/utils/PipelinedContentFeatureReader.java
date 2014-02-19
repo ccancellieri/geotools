@@ -169,13 +169,12 @@ public class PipelinedContentFeatureReader extends DelegateSimpleFeature impleme
         }
         boolean hasNext = fr.hasNext() || frDiff.hasNext();
         if (!hasNext) {
-//            if (queryGeom == null) {
-//                // query on all the geoms
-//                status.setCached(status.getOriginalGeometry(), true);
-//            } else {
             if (queryGeom != null) {
                 // set query as cached
                 status.setCached(queryGeom, true);
+                // save the status
+                featureReaderOp.save();
+                // TODO free the locks
             }
         }
         return hasNext;

@@ -52,12 +52,14 @@ public abstract class DelegateSimpleFeature implements SimpleFeatureReader {
                 if (!schemaOp.isCached(getFeatureTypeName())
                         || schemaOp.isDirty(getFeatureTypeName())) {
                     cachedSchema = schemaOp.updateCache(getFeatureTypeName());
+                    schemaOp.save();
                 } else {
                     cachedSchema = schemaOp.getCache(getFeatureTypeName());
                 }
             } catch (IOException e) {
                 try {
                     schemaOp.setDirty(getFeatureTypeName(), true);
+                    schemaOp.save();
                 } catch (IOException e1) {
                     if (LOGGER.isLoggable(Level.SEVERE)) {
                         LOGGER.log(Level.SEVERE, e1.getMessage(), e1);
@@ -95,6 +97,7 @@ public abstract class DelegateSimpleFeature implements SimpleFeatureReader {
             SimpleFeature feature = null;
             if (!nextOp.isCached(sf) || nextOp.isDirty(sf)) {
                 feature = nextOp.updateCache(sf);
+//                nextOp.save(); payload is too high 
             } else {
                 feature = nextOp.getCache(sf);
             }

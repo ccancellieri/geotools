@@ -15,8 +15,7 @@ public class MapParam extends Param {
         super(arg0, arg1, arg2, arg3, arg4, arg5);
     }
 
-    public MapParam(String arg0, Class<?> arg1, InternationalString arg2, boolean arg3,
-            Object arg4) {
+    public MapParam(String arg0, Class<?> arg1, InternationalString arg2, boolean arg3, Object arg4) {
         super(arg0, arg1, arg2, arg3, arg4);
     }
 
@@ -65,10 +64,16 @@ public class MapParam extends Param {
 
     public static Map<String, Serializable> parseMap(String input) {
         final Map<String, Serializable> map = new HashMap<String, Serializable>();
+        if (input == null)
+            return map;
         input = input.substring(1, input.length() - 1);
         for (String pair : input.split(",")) {
-            String[] kv = pair.split("=");
-            map.put(kv[0].trim(), kv[1].trim());
+            if (pair != null && pair.length() > 1) {
+                final String[] kv = pair.split("=");
+                if (kv != null && kv.length == 2) {
+                    map.put(kv[0].trim(), kv[1].trim());
+                }
+            }
         }
         return map;
     }

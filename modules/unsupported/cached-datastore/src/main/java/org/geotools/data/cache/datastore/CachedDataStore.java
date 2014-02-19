@@ -9,6 +9,7 @@ import java.util.logging.Logger;
 
 import org.geotools.data.DataStore;
 import org.geotools.data.Transaction;
+import org.geotools.data.cache.op.CachedOp;
 import org.geotools.data.cache.op.CachedOpSPI;
 import org.geotools.data.cache.op.CachedOpStatus;
 import org.geotools.data.cache.op.Operation;
@@ -31,16 +32,16 @@ public class CachedDataStore extends ContentDataStore {
 
     private final Map<String, CacheManager> cacheManagerMap = new HashMap<String, CacheManager>();
 
-    private Map<String, CacheStatus> cacheStatusMap;
+    // private Map<String, CacheStatus> cacheStatusMap;
 
-    final Map<String, CachedOpSPI<CachedOpStatus<?>, ?, ?, ?>> spiParams;
+    final Map<String, CachedOpSPI<CachedOpStatus<?>, CachedOp<?, ?>, ?, ?>> spiParams;
 
     private final String uid;
 
     private TypeNamesOp typeNamesOp;
 
     public CachedDataStore(final DataStore source, final DataStore cache, final String uid,
-            final Map<String, CachedOpSPI<CachedOpStatus<?>, ?, ?, ?>> spiParams)
+            final Map<String, CachedOpSPI<CachedOpStatus<?>, CachedOp<?, ?>, ?, ?>> spiParams)
             throws IOException {
 
         if (source == null || cache == null || uid == null || spiParams == null)
@@ -53,77 +54,76 @@ public class CachedDataStore extends ContentDataStore {
 
         // todo: check changes between passed params and loaded cachedStatusMap
 
-        final CachedOpSPI<CachedOpStatus<?>, ?, ?, ?> typeNamesSPI = this.spiParams
+        final CachedOpSPI<CachedOpStatus<?>, CachedOp<?, ?>, ?, ?> typeNamesSPI = this.spiParams
                 .remove(Operation.typeNames.toString());
-        final String typeNameUid = createTypeNamesOpUID();
+//        final String typeNameUid = createTypeNamesOpUID();
 
-        if ((cacheStatusMap = EHCacheUtils.load(uid)) == null) {
-            cacheStatusMap = new HashMap<String, CacheStatus>();
+        // if ((cacheStatusMap = EHCacheUtils.load(uid)) == null) {
+        // cacheStatusMap = new HashMap<String, CacheStatus>();
 
-            // building/loading typeNames op
-            if (typeNamesSPI != null) {
-                // create an SPI map with only one operation (for TypeNames)
-                final Map<String, CachedOpSPI<CachedOpStatus<?>, ?, ?, ?>> typeNameOpSPIMap = new HashMap<String, CachedOpSPI<CachedOpStatus<?>, ?, ?, ?>>();
-                typeNameOpSPIMap.put(Operation.typeNames.toString(), typeNamesSPI);
-                // store created status
-                CacheStatus cacheStatus = new CacheStatus(typeNameUid, typeNameOpSPIMap, false);
-                cacheStatusMap.put(typeNameUid, cacheStatus);
-                // store created manager
-                CacheManager cm = new CacheManager(source, cache, cacheStatus);
-                cacheManagerMap.put(typeNameUid, cm);
-
-                typeNamesOp = (TypeNamesOp) cm.getCachedOp(Operation.typeNames);
-            } else {
-                typeNamesOp = null;
-            }
-
-            for (Name typeName : createTypeNames()) {
-                final String name = typeName.getLocalPart();
-                final CacheStatus cs = new CacheStatus(name, spiParams, true);
-                cacheStatusMap.put(name, cs);
-                final CacheManager cm = new CacheManager(source, cache, cs);
-                cacheManagerMap.put(name, cm);
-            }
+        // building/loading typeNames op
+        if (typeNamesSPI != null) {
+            final String name = Operation.typeNames.toString();
+            // create an SPI map with only one operation (for TypeNames)
+            final Map<String, CachedOpSPI<CachedOpStatus<?>, CachedOp<?, ?>, ?, ?>> typeNameOpSPIMap = new HashMap<String, CachedOpSPI<CachedOpStatus<?>, CachedOp<?, ?>, ?, ?>>();
+            typeNameOpSPIMap.put(name, typeNamesSPI);
+            // create the manager
+            final CacheManager cm = new CacheManager(source, cache, createCacheStatusUID(name), typeNameOpSPIMap, false);
+            // store created manager
+            cacheManagerMap.put(name, cm);
+            // initialize typeNamesOp
+            typeNamesOp = (TypeNamesOp) cm.getCachedOp(Operation.typeNames);
         } else {
-            if (typeNamesSPI != null) {
-                final CacheStatus cs = cacheStatusMap.get(typeNameUid);
-                if (cs == null) {
-                    throw new IllegalStateException("Unable to locate the cacheManager for: "
-                            + typeNameUid);
-                }
-                final CacheManager cm = new CacheManager(source, cache, cs);
-                cacheManagerMap.put(typeNameUid, cm);
-
-                typeNamesOp = (TypeNamesOp) cm.getCachedOp(Operation.typeNames);
-            } else {
-                typeNamesOp = null;
-            }
-
-            for (Name typeName : createTypeNames()) {
-                final String name = typeName.getLocalPart();
-                final CacheStatus cs = cacheStatusMap.get(name);
-                if (cs == null) {
-                    throw new IllegalStateException("Unable to locate the cacheManager for: "
-                            + typeNameUid);
-                }
-                final CacheManager cm = new CacheManager(source, cache, cs);
-                cacheManagerMap.put(name, cm);
-            }
+            typeNamesOp = null;
         }
+
+        for (Name typeName : createTypeNames()) {
+            final String name = typeName.getLocalPart();
+//            final CacheStatus cs = new CacheStatus(name, spiParams, true);
+//            cacheStatusMap.put(name, cs);
+//            final CacheManager cm = 
+            cacheManagerMap.put(name, new CacheManager(source, cache, createCacheStatusUID(name), spiParams ,true));
+        }
+        // } else {
+        // if (typeNamesSPI != null) {
+        // final CacheStatus cs = cacheStatusMap.get(typeNameUid);
+        // if (cs == null) {
+        // throw new IllegalStateException("Unable to locate the cacheManager for: "
+        // + typeNameUid);
+        // }
+        // final CacheManager cm = new CacheManager(source, cache, cs);
+        // cacheManagerMap.put(typeNameUid, cm);
+        //
+        // typeNamesOp = (TypeNamesOp) cm.getCachedOp(Operation.typeNames);
+        // } else {
+        // typeNamesOp = null;
+        // }
+        //
+        // for (Name typeName : createTypeNames()) {
+        // final String name = typeName.getLocalPart();
+        // final CacheStatus cs = cacheStatusMap.get(name);
+        // if (cs == null) {
+        // throw new IllegalStateException("Unable to locate the cacheManager for: "
+        // + typeNameUid);
+        // }
+        // final CacheManager cm = new CacheManager(source, cache, cs);
+        // cacheManagerMap.put(name, cm);
+        // }
+        // }
     }
 
     @Override
     public void dispose() {
         super.dispose();
 
-        if (typeNamesOp != null) {
-            try {
-                typeNamesOp.dispose();
-            } catch (IOException e) {
-                LOGGER.log(Level.WARNING,
-                        "Status:" + typeNamesOp.getStatus() + " " + e.getMessage(), e);
-            }
-        }
+//        if (typeNamesOp != null) {
+//            try {
+//                typeNamesOp.dispose();
+//            } catch (IOException e) {
+//                LOGGER.log(Level.WARNING,
+//                        "Status:" + typeNamesOp.getStatus() + " " + e.getMessage(), e);
+//            }
+//        }
 
         for (String mngrkey : cacheManagerMap.keySet()) {
             try {
@@ -157,16 +157,21 @@ public class CachedDataStore extends ContentDataStore {
      * @throws IOException
      */
     void save() throws IOException {
-        EHCacheUtils.store(uid, cacheStatusMap);
-        EHCacheUtils.flush();
+        if (cacheManagerMap != null) {
+            for (CacheManager cs : cacheManagerMap.values()) {
+                if (cs != null) {
+                    cs.save();
+                }
+            }
+        }
     }
 
     /**
      * clear the cache status and all of the sub caches
      */
     public void clear() throws IOException {
-        if (cacheStatusMap != null) {
-            for (CacheStatus cs : cacheStatusMap.values()) {
+        if (cacheManagerMap != null) {
+            for (CacheManager cs : cacheManagerMap.values()) {
                 if (cs != null) {
                     cs.clear();
                 }
@@ -182,6 +187,7 @@ public class CachedDataStore extends ContentDataStore {
 
             if (!typeNamesOp.isCached(uid) || typeNamesOp.isDirty(uid)) {
                 names = typeNamesOp.updateCache(uid);
+                typeNamesOp.save();
             } else {
                 names = typeNamesOp.getCache(uid);
             }
@@ -218,7 +224,7 @@ public class CachedDataStore extends ContentDataStore {
     private ContentFeatureSource buildFeatureSource(ContentEntry contentEntry)
             throws IllegalArgumentException, IOException {
         final String typeName = contentEntry.getName().getLocalPart();
-        CacheManager cacheManager = cacheManagerMap.get(typeName);
+        final CacheManager cacheManager = cacheManagerMap.get(typeName);
         return new DelegateContentFeatureSource(cacheManager, null, contentEntry);
     }
 
@@ -230,8 +236,8 @@ public class CachedDataStore extends ContentDataStore {
     // return new CacheManager(source, cache, status);
     // }
 
-    private String createTypeNamesOpUID() {
-        return new StringBuilder(uid).append(':').append(Operation.typeNames).toString();
+    private String createCacheStatusUID(String typeName) {
+        return new StringBuilder(uid).append(':').append(typeName).toString();
     }
 
     // /**
