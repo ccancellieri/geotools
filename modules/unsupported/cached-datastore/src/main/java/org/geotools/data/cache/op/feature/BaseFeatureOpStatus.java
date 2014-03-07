@@ -16,10 +16,8 @@ import org.geotools.data.store.ContentEntry;
 import org.geotools.factory.CommonFactoryFinder;
 import org.geotools.geometry.jts.JTS;
 import org.geotools.geometry.jts.JTSFactoryFinder;
-import org.geotools.geometry.jts.ReferencedEnvelope;
 import org.geotools.referencing.CRS;
 import org.opengis.feature.simple.SimpleFeatureType;
-import org.opengis.feature.type.FeatureType;
 import org.opengis.feature.type.GeometryDescriptor;
 import org.opengis.filter.And;
 import org.opengis.filter.Filter;
@@ -53,26 +51,14 @@ public class BaseFeatureOpStatus implements CachedOpStatus<Query>, Serializable 
     /** serialVersionUID */
     private static final long serialVersionUID = 1L;
 
+    // lock on dirty areas
+    private final ReadWriteLock lockStatus = new ReentrantReadWriteLock();
+
     // used to track cached areas
     protected Geometry cachedAreas = new Polygon(null, null, JTSFactoryFinder.getGeometryFactory());
 
-    // lock on cached areas
-    protected final ReadWriteLock lockCachedAreas = new ReentrantReadWriteLock();
-
     // used to track dirty areas
     protected Geometry dirtyAreas = new Polygon(null, null, JTSFactoryFinder.getGeometryFactory());
-
-    // lock on dirty areas
-    protected final ReadWriteLock lockDirtyAreas = new ReentrantReadWriteLock();
-
-    protected static final FilterFactory2 ff = CommonFactoryFinder.getFilterFactory2(null);
-
-    private static final Set<Class<? extends Filter>> supportedFilterTypes = new HashSet<Class<? extends Filter>>(
-            Arrays.asList(BBOX.class, Contains.class, Crosses.class, DWithin.class, Equals.class,
-                    Intersects.class, Overlaps.class, Touches.class, Within.class));
-
-    // lock on dirty areas
-    private final ReadWriteLock lockStatus = new ReentrantReadWriteLock();
 
     // the cached schema
     protected transient SimpleFeatureType schema;
@@ -87,6 +73,12 @@ public class BaseFeatureOpStatus implements CachedOpStatus<Query>, Serializable 
     private transient Geometry originalGeom;
 
     private transient boolean fullyCached = false;
+
+    protected static final FilterFactory2 ff = CommonFactoryFinder.getFilterFactory2(null);
+
+    private static final Set<Class<? extends Filter>> supportedFilterTypes = new HashSet<Class<? extends Filter>>(
+            Arrays.asList(BBOX.class, Contains.class, Crosses.class, DWithin.class, Equals.class,
+                    Intersects.class, Overlaps.class, Touches.class, Within.class));
 
     public boolean isFullyCached() {
         return fullyCached;
@@ -143,18 +135,18 @@ public class BaseFeatureOpStatus implements CachedOpStatus<Query>, Serializable 
         }
         if (isDirty) {
             try {
-                lockDirtyAreas.writeLock().lock();
+                lockStatus.writeLock().lock();
                 dirtyAreas = dirtyAreas.union(geom);
             } finally {
-                lockDirtyAreas.writeLock().unlock();
+                lockStatus.writeLock().unlock();
             }
         } else {
             // perform a difference between dirty area with this query
             try {
-                lockDirtyAreas.writeLock().lock();
+                lockStatus.writeLock().lock();
                 dirtyAreas = dirtyAreas.difference(geom);
             } finally {
-                lockDirtyAreas.writeLock().unlock();
+                lockStatus.writeLock().unlock();
             }
         }
     }
@@ -165,13 +157,13 @@ public class BaseFeatureOpStatus implements CachedOpStatus<Query>, Serializable 
             // TODO check when this is not true!!!!
         }
         try {
-            lockDirtyAreas.readLock().lock();
+            lockStatus.readLock().lock();
             // no cached data?
             if (dirtyAreas.isEmpty())
                 return false;
             return dirtyAreas.intersects(geom);
         } finally {
-            lockDirtyAreas.readLock().unlock();
+            lockStatus.readLock().unlock();
         }
     }
 
@@ -182,7 +174,7 @@ public class BaseFeatureOpStatus implements CachedOpStatus<Query>, Serializable 
         final Query overQuery = new Query(typeName);
 
         try {
-            lockCachedAreas.readLock().lock();
+            lockStatus.readLock().lock();
             if (cachedAreas.isEmpty() || geoName == null) {
                 if (query4Cache) {
                     // no geometry in cache
@@ -192,10 +184,10 @@ public class BaseFeatureOpStatus implements CachedOpStatus<Query>, Serializable 
                     overQuery.setFilter(queryFilter);
                 }
             } else {// if (cachedAreas.getNumGeometries() > 0) {
-//                if (geoName == null) {
-//                    throw new IOException(
-//                            "Unable to apply the spatial filter without a geometry name");
-//                }
+            // if (geoName == null) {
+            // throw new IOException(
+            // "Unable to apply the spatial filter without a geometry name");
+            // }
                 final Filter areaFilter;
                 final Filter dirtyFilter;
                 try {
@@ -231,7 +223,7 @@ public class BaseFeatureOpStatus implements CachedOpStatus<Query>, Serializable 
                 }
             }
         } finally {
-            lockCachedAreas.readLock().unlock();
+            lockStatus.readLock().unlock();
         }
 
         overQuery.setProperties(Query.ALL_PROPERTIES);
@@ -262,14 +254,14 @@ public class BaseFeatureOpStatus implements CachedOpStatus<Query>, Serializable 
      * 
      * @param query
      */
-//    public Filter[] splitFilters(Query query) {
-//        return splitFilters(query, schema);
-//    }
+    // public Filter[] splitFilters(Query query) {
+    // return splitFilters(query, schema);
+    // }
 
-//    private static BBOX bboxFilter(Envelope bbox, FeatureType schema) {
-//        return ff.bbox(schema.getGeometryDescriptor().getLocalName(), bbox.getMinX(),
-//                bbox.getMinY(), bbox.getMaxX(), bbox.getMaxY(), null);
-//    }
+    // private static BBOX bboxFilter(Envelope bbox, FeatureType schema) {
+    // return ff.bbox(schema.getGeometryDescriptor().getLocalName(), bbox.getMinX(),
+    // bbox.getMinY(), bbox.getMaxX(), bbox.getMaxY(), null);
+    // }
 
     /**
      * Splits a query into two parts, a spatial component that can be turned into a bbox filter (by including some more feature in the result) and a
@@ -388,7 +380,7 @@ public class BaseFeatureOpStatus implements CachedOpStatus<Query>, Serializable 
     }
 
     public Geometry getGeometry(Query query) throws IOException {
-//        final Filter[] sF = splitFilters(query);
+        // final Filter[] sF = splitFilters(query);
         final Envelope env = getEnvelope(query.getFilter());
         if (env == null || env.isNull())
             return null;
@@ -414,7 +406,7 @@ public class BaseFeatureOpStatus implements CachedOpStatus<Query>, Serializable 
     public boolean isCached(Query query) throws IOException {
         if (fullyCached)
             return true;
-//        final Filter[] sF = splitFilters(query);
+        // final Filter[] sF = splitFilters(query);
         final Envelope env = getEnvelope(query.getFilter());
         if (env == null || env.isNull()) {
             return false;
@@ -430,7 +422,7 @@ public class BaseFeatureOpStatus implements CachedOpStatus<Query>, Serializable 
     }
 
     private boolean isCached(Geometry geom) throws IOException {
-        if (fullyCached) {
+        if (isFullyCached()) {
             return true;
         } else if (geom == null) {
             // you are asking for all the geometries in the source
@@ -438,13 +430,13 @@ public class BaseFeatureOpStatus implements CachedOpStatus<Query>, Serializable 
             return false;
         }
         try {
-            lockCachedAreas.readLock().lock();
+            lockStatus.readLock().lock();
             // no cached data?
             if (cachedAreas == null || cachedAreas.isEmpty())
                 return false;
             return cachedAreas.covers(geom);
         } finally {
-            lockCachedAreas.readLock().unlock();
+            lockStatus.readLock().unlock();
         }
     }
 
@@ -460,48 +452,54 @@ public class BaseFeatureOpStatus implements CachedOpStatus<Query>, Serializable 
             if (isCached) {
                 // set ALL as cached
                 try {
-                    lockCachedAreas.writeLock().lock();
+                    lockStatus.writeLock().lock();
                     cachedAreas = cachedAreas.union(originalGeom);
+                    checkFullyCached();
                 } finally {
-                    lockCachedAreas.writeLock().unlock();
+                    lockStatus.writeLock().unlock();
                 }
             } else {
-                // set Nothing as cached
-                fullyCached = false;
                 try {
-                    lockCachedAreas.writeLock().lock();
+                    lockStatus.writeLock().lock();
                     cachedAreas = cachedAreas.difference(originalGeom);
+                    // set Nothing as cached
+                    fullyCached = false;
                 } finally {
-                    lockCachedAreas.writeLock().unlock();
+                    lockStatus.writeLock().unlock();
                 }
             }
         }
         if (isCached) {
             // integrate cached area with this query
             try {
-                lockCachedAreas.writeLock().lock();
+                lockStatus.writeLock().lock();
                 cachedAreas = cachedAreas.union(geom);
+                checkFullyCached();
             } finally {
-                lockCachedAreas.writeLock().unlock();
+                lockStatus.writeLock().unlock();
             }
         } else {
             // perform a difference between cached area with this query
             try {
-                lockCachedAreas.writeLock().lock();
+                lockStatus.writeLock().lock();
                 cachedAreas = cachedAreas.difference(geom);
+                // set Nothing as cached
+                fullyCached = false;
             } finally {
-                lockCachedAreas.writeLock().unlock();
+                lockStatus.writeLock().unlock();
             }
         }
-        try {
-            lockStatus.writeLock().lock();
-            if (cachedAreas.covers(originalGeom)) {
-                fullyCached = true;
-            } else {
-                fullyCached = false;
-            }
-        } finally {
-            lockStatus.writeLock().unlock();
+
+    }
+
+    /**
+     * warning: you have to lock on write status to use this
+     */
+    private void checkFullyCached() {
+        if (cachedAreas.covers(originalGeom)) {
+            fullyCached = true;
+        } else {
+            fullyCached = false;
         }
     }
 
@@ -516,7 +514,6 @@ public class BaseFeatureOpStatus implements CachedOpStatus<Query>, Serializable 
         final Geometry geom = getGeometry(query);
         if (geom == null) {
             return;
-            // TODO use cache or read from source (how to determine if the cache is complete?)
         }
         setDirty(geom, value);
     }
@@ -529,24 +526,13 @@ public class BaseFeatureOpStatus implements CachedOpStatus<Query>, Serializable 
     public void clear() throws IOException {
 
         try {
-            lockCachedAreas.writeLock().lock();
-            cachedAreas = new Polygon(null, null, JTSFactoryFinder.getGeometryFactory());
-        } finally {
-            lockCachedAreas.writeLock().unlock();
-        }
-        try {
-            lockDirtyAreas.writeLock().lock();
-            dirtyAreas = new Polygon(null, null, JTSFactoryFinder.getGeometryFactory());
-        } finally {
-            lockDirtyAreas.writeLock().unlock();
-        }
-        try {
             lockStatus.writeLock().lock();
-            fullyCached=false;
+            cachedAreas = new Polygon(null, null, JTSFactoryFinder.getGeometryFactory());
+            dirtyAreas = new Polygon(null, null, JTSFactoryFinder.getGeometryFactory());
+            fullyCached = false;
         } finally {
             lockStatus.writeLock().unlock();
         }
-        
     }
 
     private final static Operation[] applicableOperations = new Operation[] {

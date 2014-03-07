@@ -6,7 +6,6 @@ import org.geotools.data.cache.datastore.CacheManager;
 import org.geotools.data.cache.op.Operation;
 import org.geotools.data.cache.op.feature.BaseFeatureOpSPI;
 import org.geotools.data.cache.op.feature.BaseFeatureOpStatus;
-import org.geotools.data.simple.SimpleFeatureSource;
 import org.geotools.geometry.jts.ReferencedEnvelope;
 import org.springframework.stereotype.Service;
 
@@ -18,7 +17,7 @@ public class FeatureBoundsOpSPI extends BaseFeatureOpSPI<FeatureBoundsOp, Refere
 
     @Override
     public Operation getOp() {
-        return Operation.featureSource;
+        return Operation.featureBounds;
     }
 
     @Override

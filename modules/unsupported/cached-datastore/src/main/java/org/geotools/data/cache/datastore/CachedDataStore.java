@@ -164,6 +164,7 @@ public class CachedDataStore extends ContentDataStore {
                 }
             }
         }
+        EHCacheUtils.flush();
     }
 
     /**
@@ -177,6 +178,7 @@ public class CachedDataStore extends ContentDataStore {
                 }
             }
         }
+        EHCacheUtils.flush();
     }
 
     @Override

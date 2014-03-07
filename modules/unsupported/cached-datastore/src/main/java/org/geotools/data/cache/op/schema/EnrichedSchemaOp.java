@@ -15,18 +15,19 @@ import org.opengis.feature.type.Name;
 
 public class EnrichedSchemaOp extends SchemaOp {
 
-    public EnrichedSchemaOp(CacheManager cacheManager, final CachedOpStatus<Name> status) throws IOException {
+    public EnrichedSchemaOp(CacheManager cacheManager, final CachedOpStatus<Name> status)
+            throws IOException {
         super(cacheManager, status);
     }
 
-    public static String TIMESTAMP_NAME = "_TimeStamp_";
+    public static String TIMESTAMP_NAME = "_TimeS_";
 
     public static String HINTS_NAME = "_Hints_";
 
     @Override
     public SimpleFeatureType updateCache(Name name) throws IOException {
 
-//        verify(name);
+        // verify(name);
 
         final SimpleFeatureTypeBuilder b = new SimpleFeatureTypeBuilder();
 
@@ -48,9 +49,9 @@ public class EnrichedSchemaOp extends SchemaOp {
         if (isDirty(name)) {
             try {
                 cacheManager.getCache().updateSchema(name, newSchema);
-            } catch (IOException ioe){
-//                cacheManager.getCache().removeSchema(name, schema);
-//                cacheManager.getCache().createSchema(newSchema);
+            } catch (IOException ioe) {
+                // cacheManager.getCache().removeSchema(name, schema);
+                // cacheManager.getCache().createSchema(newSchema);
                 throw new UnsupportedOperationException("we need drop schema");
             }
             setDirty(name, false);
@@ -58,13 +59,13 @@ public class EnrichedSchemaOp extends SchemaOp {
             cacheManager.getCache().createSchema(newSchema);
         }
         setCached(name, true);
-        
+
         return newSchema;
     }
 
     @Override
     public SimpleFeatureType getCache(Name o) throws IOException {
-//        verify(o);
+        // verify(o);
         return cacheManager.getCache().getSchema(o);
     }
 

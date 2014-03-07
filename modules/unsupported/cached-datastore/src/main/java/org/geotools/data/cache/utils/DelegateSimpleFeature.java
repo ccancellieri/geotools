@@ -30,6 +30,8 @@ public abstract class DelegateSimpleFeature implements SimpleFeatureReader {
 
     protected final CacheManager cacheManager;
 
+    private SimpleFeatureType schema;
+
     public DelegateSimpleFeature(CacheManager cacheManager) throws IOException {
 
         if (cacheManager == null) {
@@ -40,6 +42,7 @@ public abstract class DelegateSimpleFeature implements SimpleFeatureReader {
 
         this.schemaOp = cacheManager.getCachedOpOfType(Operation.schema, SchemaOp.class);
         this.nextOp = cacheManager.getCachedOpOfType(Operation.next, NextOp.class);
+
     }
 
     protected abstract Name getFeatureTypeName();
@@ -94,10 +97,14 @@ public abstract class DelegateSimpleFeature implements SimpleFeatureReader {
         final SimpleFeature sf = getNextInternal();
         // try using next operation
         if (nextOp != null) {
+//             lazy initialize the schema
+//            if (schema == null) {
+//                this.schema = getFeatureType();
+//                nextOp.setSchema(schema);
+//            }
             SimpleFeature feature = null;
             if (!nextOp.isCached(sf) || nextOp.isDirty(sf)) {
                 feature = nextOp.updateCache(sf);
-//                nextOp.save(); payload is too high 
             } else {
                 feature = nextOp.getCache(sf);
             }

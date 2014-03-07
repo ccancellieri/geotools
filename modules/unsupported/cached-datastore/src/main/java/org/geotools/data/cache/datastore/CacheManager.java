@@ -84,6 +84,8 @@ public class CacheManager {
         status.clear();
         // persist changes
         save();
+        // flush
+        EHCacheUtils.flush();
     }
 
     /**

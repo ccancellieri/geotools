@@ -34,7 +34,7 @@ public class PipelinedContentFeatureReader extends DelegateSimpleFeature impleme
 
     private FeatureReader<SimpleFeatureType, SimpleFeature> frDiff = null;
 
-    private final BaseFeatureOp<SimpleFeatureReader> featureReaderOp;
+//    private final BaseFeatureOp<SimpleFeatureReader> featureReaderOp;
 
     private final BaseFeatureOpStatus status;
 
@@ -57,8 +57,8 @@ public class PipelinedContentFeatureReader extends DelegateSimpleFeature impleme
         // this.featureSourceOp = cacheManager.getCachedOpOfType(Operation.featureSource,
         // BaseFeatureOp.class);
         // featureReader
-        this.featureReaderOp = cacheManager.getCachedOpOfType(Operation.featureReader,
-                BaseFeatureOp.class);
+//        this.featureReaderOp = cacheManager.getCachedOpOfType(Operation.featureReader,
+//                BaseFeatureOp.class);
 
         this.transaction = transaction;
     }
@@ -147,18 +147,18 @@ public class PipelinedContentFeatureReader extends DelegateSimpleFeature impleme
 
                 }
                 if (frDiff == null) {
-                    if (featureReaderOp != null) {
-                        if (!featureReaderOp.isCached(query) || featureReaderOp.isDirty(query)) {
-                            frDiff = featureReaderOp.updateCache(query);
-                        } else {
-                            frDiff = featureReaderOp.getCache(query);
-                        }
-
-                    } else {
+//                    if (featureReaderOp != null) {
+//                        if (!featureReaderOp.isCached(query) || featureReaderOp.isDirty(query)) {
+//                            frDiff = featureReaderOp.updateCache(query);
+//                        } else {
+//                            frDiff = featureReaderOp.getCache(query);
+//                        }
+//
+//                    } else {
                         frDiff = new DelegateSimpleFeatureReader(cacheManager, cacheManager
                                 .getCache().getFeatureReader(cacheQuery, transaction),
                                 status.getSchema());
-                    }
+//                    }
 
                 }
             } catch (IOException e) {
@@ -173,7 +173,7 @@ public class PipelinedContentFeatureReader extends DelegateSimpleFeature impleme
                 // set query as cached
                 status.setCached(queryGeom, true);
                 // save the status
-                featureReaderOp.save();
+//                featureReaderOp.save();
                 // TODO free the locks
             }
         }
@@ -200,6 +200,7 @@ public class PipelinedContentFeatureReader extends DelegateSimpleFeature impleme
             } catch (IOException e) {
             }
         }
+        cacheManager.save();
     }
 
 }
